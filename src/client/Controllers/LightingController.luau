@@ -62,6 +62,25 @@ local function neonColor(part: BasePart): Color3
 	return color
 end
 
+-- Lights faded to zero are disabled afterwards so they cost nothing to render. FxLights
+-- (optional extras) stay off when the player picked Reduced Effects.
+local fadeTokens: { [Light]: number } = {}
+local function fadeLight(light: Light, on: boolean, brightness: number, duration: number)
+	local token = (fadeTokens[light] or 0) + 1
+	fadeTokens[light] = token
+	if on then
+		light.Enabled = not (reducedEffects() and CollectionService:HasTag(light, "FxLight"))
+		tweenProps(light, { Brightness = brightness }, duration)
+	else
+		tweenProps(light, { Brightness = 0 }, duration)
+		task.delay(duration, function()
+			if fadeTokens[light] == token then
+				light.Enabled = false
+			end
+		end)
+	end
+end
+
 local function setDayLights(on: boolean, duration: number)
 	for _, light in CollectionService:GetTagged("DayLight") do
 		local base = baseBrightness[light]
@@ -69,7 +88,7 @@ local function setDayLights(on: boolean, duration: number)
 			base = light.Brightness
 			baseBrightness[light] = base
 		end
-		tweenProps(light, { Brightness = if on then base else 0 }, duration)
+		fadeLight(light, on, base, duration)
 	end
 	for _, part in CollectionService:GetTagged("DayNeon") do
 		local base = neonColor(part)
@@ -85,10 +104,10 @@ local function setNightMode(on: boolean, duration: number)
 	for _, light in CollectionService:GetTagged("NightLight") do
 		local base = nightLightBrightness[light]
 		if base == nil then
-			base = math.max(light.Brightness, 1.4)
+			base = (light:GetAttribute("NightBrightness") :: number?) or math.max(light.Brightness, 1.4)
 			nightLightBrightness[light] = base
 		end
-		tweenProps(light, { Brightness = if on then base else 0 }, duration)
+		fadeLight(light, on, base, duration)
 	end
 end
 
@@ -178,6 +197,9 @@ function LightingController.Start()
 	onPhase(true)
 	ReplicatedStorage:GetAttributeChangedSignal("Phase"):Connect(function()
 		onPhase(false)
+	end)
+	player:GetAttributeChangedSignal("Set_ReducedEffects"):Connect(function()
+		onPhase(true)
 	end)
 	task.spawn(flickerLoop)
 end

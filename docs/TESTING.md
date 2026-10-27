@@ -26,7 +26,28 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §P1: Phase 1 fix verification (test this build first)
+## §V: Visual slice review (test this build first)
+
+1. `git pull`, then rebuild (`rojo build default.project.json -o NightShift.rbxl`) or reconnect `rojo serve`.
+2. **Before importing meshes**, play once and take the screenshots in `docs/VISUAL_BENCHMARK.md` §6. These capture the procedural look.
+3. Import the four hero meshes (`docs/ASSETS.md` §A), stop, press Play again, and retake screenshots 1–3. This shows what the mesh pipeline adds.
+4. Use `FastPhases` = true to reach night quickly, or `SkipPhase` in Server view.
+
+Pass/fail:
+- [ ] V-1 Output shows `[MallBuilder] built N parts` with no red errors. **Report N** (budget ≤ 6,000).
+- [ ] V-2 You spawn facing north: fountain, palms and the **NIGHT SHIFT** neon sign are in view.
+- [ ] V-3 Day: sunlight falls through the dome onto the floor with rib shadows; light shafts and dust are faintly visible; the atmosphere is warm, not washed out.
+- [ ] V-4 Dusk to night: lights stutter, then columns and corridor pilasters get purple/cyan uplight washes; floors gain a sheen; spores drift; neon is saturated; paths stay readable.
+- [ ] V-5 Night to dawn: shafts and dust return; uplights switch off.
+- [ ] V-6 Corridor: dark runner with brass edges, soffit beams, two hanging signs, glowing ad panels between shops, flower beds, blade signs readable from the corridor mouth.
+- [ ] V-7 Shop: lit display windows (plush / mannequin / demo screen per category), feature wall with logo, feature fixture, counter badge, crates on a pallet with a 📦 STOCK sign.
+- [ ] V-8 **Regression:** claim, order stock, customer walks in and is served, upgrade, survive a night, all as before. Customers must not get stuck on new props; watch one full customer trip.
+- [ ] V-9 Crawler: magenta eye trails while moving; white flash and shiver while lit; leans when chasing.
+- [ ] V-10 Settings → Reduced effects ON removes shafts, particles, uplights and the hero-sign glow; turning it OFF restores them.
+- [ ] V-11 After the mesh import: palms, fountain, columns and planter benches look smooth with correct materials, sit on the floor (not floating or sunk), and the fountain still sprays.
+- [ ] V-12 Performance: Shift+F5 FPS at spawn by day and at night with enemies, at graphics level Automatic and at level 5.
+
+## §P1: Phase 1 fix verification
 
 Get the update with `git pull`, then rebuild with `rojo build default.project.json -o NightShift.rbxl`, or keep `rojo serve` connected. Set `FastPhases` = true.
 

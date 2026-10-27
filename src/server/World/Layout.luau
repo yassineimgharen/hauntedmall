@@ -54,7 +54,8 @@ local Layout = {
 		{ Bottom = Vector3.new(27, 0, 21), Top = Vector3.new(27, 24, -20.7) },
 	},
 
-	PlayerSpawn = CFrame.new(0, 0.6, -52),
+	-- faces north so the first view is the fountain, dome and the big neon sign
+	PlayerSpawn = CFrame.new(0, 0.6, -52) * CFrame.Angles(0, math.pi, 0),
 
 	-- Customer route from outside the doors to the corridor mouth (y = 0 floor level).
 	CustomerSpawn = Vector3.new(0, 3, -98),

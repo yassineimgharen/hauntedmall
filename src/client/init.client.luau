@@ -8,6 +8,7 @@ workspace:WaitForChild("Mall")
 local CONTROLLER_ORDER = {
 	"AudioController",
 	"LightingController",
+	"AtmosphereController",
 	"WorldFxController",
 	"EnemyVisualController",
 	"PromptController",

@@ -7,6 +7,7 @@ local Palette = require(ReplicatedStorage.Shared.Config.Palette)
 local AssetRegistry = require(script.Parent.AssetRegistry)
 local Builder = require(script.Parent.Builder)
 local Layout = require(script.Parent.Layout)
+local LobbyDetail = require(script.Parent.LobbyDetail)
 local Props = require(script.Parent.Props)
 
 local Lobby = {}
@@ -239,6 +240,9 @@ local function buildColumns(parent: Instance)
 	for i = 0, 7 do
 		local angle = (i + 0.5) * math.pi / 4
 		local p = ringPoint(A.ColumnRadius, angle, 0)
+		if AssetRegistry.place("Column", CFrame.new(p), parent) then
+			continue
+		end
 		Builder.cylinder(p + Vector3.new(0, A.Height / 2, 0), 1.5, A.Height, {
 			Parent = parent,
 			Color = Palette.MarbleLight,
@@ -384,8 +388,40 @@ local function buildCenterpiece(parent: Instance)
 	Builder.light("PointLight", orb, { Range = 40, Brightness = 0.8, Color = Palette.NeonPurple }, { "NightLight" })
 end
 
+-- Central water plume. `at` must be unrotated so its Top face points up.
+local function addSprays(at: BasePart)
+	local function spray(offset: Vector3, rate: number, speed: NumberRange, spread: number)
+		local attachment = Instance.new("Attachment")
+		attachment.Position = offset
+		attachment.Parent = at
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(220, 250, 255), Color3.fromRGB(120, 210, 240))
+		emitter.LightEmission = 0.35
+		emitter.Transparency = NumberSequence.new(0.15, 1)
+		emitter.Size = NumberSequence.new(0.45, 0.15)
+		emitter.Speed = speed
+		emitter.SpreadAngle = Vector2.new(spread, spread)
+		emitter.Acceleration = Vector3.new(0, -34, 0)
+		emitter.Lifetime = NumberRange.new(0.8, 1.15)
+		emitter.Rate = rate
+		emitter.EmissionDirection = Enum.NormalId.Top
+		emitter.Parent = attachment
+	end
+	spray(Vector3.new(0, 0.5, 0), 90, NumberRange.new(11, 14), 10)
+	spray(Vector3.new(0, 0.2, 0), 40, NumberRange.new(4, 6), 60)
+end
+
 local function buildFountain(parent: Instance)
 	if AssetRegistry.place("Fountain", CFrame.new(0, 0, 0), parent) then
+		-- authored basin: keep the procedural water plume at the spout height
+		addSprays(Builder.decor({
+			Name = "FountainSpout",
+			Parent = parent,
+			Size = Vector3.one,
+			CFrame = CFrame.new(0, 11, 0),
+			Transparency = 1,
+		}))
 		return
 	end
 	local model = Builder.model("Fountain", parent)
@@ -431,28 +467,7 @@ local function buildFountain(parent: Instance)
 		Material = Enum.Material.Metal,
 	})
 
-	local function spray(at: BasePart, offset: Vector3, rate: number, speed: NumberRange, spread: number)
-		local attachment = Instance.new("Attachment")
-		attachment.Position = offset
-		attachment.Parent = at
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		emitter.Color = ColorSequence.new(Color3.fromRGB(220, 250, 255), Color3.fromRGB(120, 210, 240))
-		emitter.LightEmission = 0.35
-		emitter.Transparency = NumberSequence.new(0.15, 1)
-		emitter.Size = NumberSequence.new(0.45, 0.15)
-		emitter.Speed = speed
-		emitter.SpreadAngle = Vector2.new(spread, spread)
-		emitter.Acceleration = Vector3.new(0, -34, 0)
-		emitter.Lifetime = NumberRange.new(0.8, 1.15)
-		emitter.Rate = rate
-		emitter.EmissionDirection = Enum.NormalId.Top
-		emitter.Parent = attachment
-		return emitter
-	end
-	-- the spout ball is unrotated, so Top is world up
-	spray(spout, Vector3.new(0, 0.5, 0), 90, NumberRange.new(11, 14), 10)
-	spray(spout, Vector3.new(0, 0.2, 0), 40, NumberRange.new(4, 6), 60)
+	addSprays(spout)
 end
 
 local function buildEscalator(bottom: Vector3, top: Vector3, parent: Instance, index: number)
@@ -763,7 +778,9 @@ local function buildDressing(parent: Instance, rng: Random)
 	-- palms in planters around the fountain
 	for i = 0, 5 do
 		local base = ringPoint(22, math.rad(30 + i * 60), 0)
-		Props.planter(base, 3, parent)
+		if not AssetRegistry.place("PlanterBench", CFrame.new(base), parent) then
+			Props.planter(base, 3, parent)
+		end
 		Props.palm(base + Vector3.new(0, 2.5, 0), parent, rng)
 	end
 	-- benches facing the fountain
@@ -878,6 +895,7 @@ function Lobby.build(parent: Instance)
 	buildFacades(model, rng)
 	buildDressing(model, rng)
 	buildGameplayMarkers(model)
+	LobbyDetail.build(model)
 	return model
 end
 

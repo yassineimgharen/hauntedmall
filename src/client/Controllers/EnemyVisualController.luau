@@ -19,6 +19,7 @@ type Visual = {
 	Legs: { Leg },
 	Eyes: { BasePart },
 	Sparks: ParticleEmitter,
+	Flash: Highlight,
 	Bar: Frame,
 	BarGui: BillboardGui,
 	Gait: number,
@@ -79,6 +80,21 @@ local function makeSparks(root: BasePart): ParticleEmitter
 	return sparks
 end
 
+-- White hit-flash while the flashlight burns the enemy (max 14 enemies, well under the
+-- 31-Highlight engine limit).
+local function makeFlash(model: Model): Highlight
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = Color3.fromRGB(255, 245, 255)
+	highlight.FillTransparency = 0.6
+	highlight.OutlineColor = Color3.fromRGB(255, 170, 255)
+	highlight.OutlineTransparency = 0.1
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Enabled = false
+	highlight.Adornee = model
+	highlight.Parent = model
+	return highlight
+end
+
 local function burst(root: BasePart, color: Color3, count: number)
 	local attachment = Instance.new("Attachment")
 	attachment.Parent = root
@@ -105,6 +121,7 @@ local function dissolve(visual: Visual)
 	end
 	visual.Dying = true
 	visual.BarGui.Enabled = false
+	visual.Flash.Enabled = false
 	burst(visual.Root, Color3.fromRGB(120, 60, 200), 30)
 	for _, part in visual.Model:GetDescendants() do
 		if part:IsA("BasePart") and part ~= visual.Root then
@@ -156,6 +173,7 @@ local function register(model: Instance)
 		Legs = legs,
 		Eyes = eyes,
 		Sparks = makeSparks(root),
+		Flash = makeFlash(model),
 		Bar = bar,
 		BarGui = gui,
 		Gait = math.random() * 10,
@@ -216,11 +234,17 @@ local function animate(visual: Visual, dt: number, now: number)
 		if serverNow() < stunnedUntil then
 			offset *= CFrame.Angles(0, 0, math.sin(now * 30) * 0.08)
 		end
+		-- lean into the chase; shiver while being burned
+		offset *= CFrame.Angles(-0.14 * moving, 0, 0)
+		if serverNow() < (model:GetAttribute("LitUntil") or 0) then
+			offset *= CFrame.new((math.random() - 0.5) * 0.15, 0, (math.random() - 0.5) * 0.15)
+		end
 		visual.Body.Transform = offset
 	end
 
 	local lit = serverNow() < (model:GetAttribute("LitUntil") or 0)
 	visual.Sparks.Enabled = lit
+	visual.Flash.Enabled = lit
 	local eyeColor = if lit and math.floor(now * 20) % 2 == 0 then BURN_COLOR else EYE_COLOR
 	for _, eye in visual.Eyes do
 		eye.Color = eyeColor

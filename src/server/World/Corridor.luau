@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EconomyConfig = require(ReplicatedStorage.Shared.Config.EconomyConfig)
 local Palette = require(ReplicatedStorage.Shared.Config.Palette)
 local Builder = require(script.Parent.Builder)
+local CorridorDetail = require(script.Parent.CorridorDetail)
 local Layout = require(script.Parent.Layout)
 local Props = require(script.Parent.Props)
 local ShopUnit = require(script.Parent.ShopUnit)
@@ -253,6 +254,7 @@ function Corridor.build(parent: Instance)
 	buildShell(model)
 	buildGate(model)
 	buildDressing(model, rng)
+	CorridorDetail.build(model)
 
 	local index = 0
 	for _, x in Layout.Shop.CentersX do

@@ -98,6 +98,23 @@ function ShadowCrawler.build(): Model
 			Material = Enum.Material.Neon,
 		})
 		weld(head, eye)
+		-- ghostly streak behind each eye as it skitters (cheap, very readable in the dark)
+		local top = Instance.new("Attachment")
+		top.Position = Vector3.new(0, 0.14, 0)
+		top.Parent = eye
+		local bottom = Instance.new("Attachment")
+		bottom.Position = Vector3.new(0, -0.14, 0)
+		bottom.Parent = eye
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = top
+		trail.Attachment1 = bottom
+		trail.Lifetime = 0.25
+		trail.MinLength = 0.1
+		trail.FaceCamera = true
+		trail.LightEmission = 1
+		trail.Color = ColorSequence.new(Palette.ShadowEye)
+		trail.Transparency = NumberSequence.new(0.25, 1)
+		trail.Parent = eye
 		if side == 1 then
 			local light = Instance.new("PointLight")
 			light.Color = Palette.ShadowEye

@@ -17,7 +17,9 @@ function Components.panel(props: { [string]: any }): Frame
 		BorderSizePixel = 0,
 	}, {
 		Create.corner(),
-		Create.stroke(C.Purple, 1.5, 0.35),
+		Create.stroke(C.Purple, 1.5, 0.25),
+		-- soft top-lit sheen so panels read as glass rather than flat fills
+		Create.gradient(Color3.new(1, 1, 1), Color3.fromRGB(165, 155, 195), 90),
 	})
 	for key, value in props do
 		frame[key] = value
