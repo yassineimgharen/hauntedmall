@@ -26,7 +26,30 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §V: Visual slice review (test this build first)
+## §M: Monetization Phase 1 (test this build first)
+
+No Robux is involved anywhere in this section. The store runs in **Studio test mode**.
+
+1. `git pull`, then rebuild or reconnect `rojo serve`. Press Play.
+2. Output should show `STUDIO TEST STORE active` and **no** `[MonetizationService] config:` warnings. A gold **🧪 TEST STORE** button sits bottom-left. Click it.
+3. For persistence checks, use the published private test experience with API access on (§P). Otherwise the memory fallback forgets everything when you stop.
+
+Scenario switches are Workspace attributes set in the **Server** view (Test tab → Current: Server → select Workspace → Attributes → +). See `docs/MONETIZATION.md` §4.
+
+- [ ] M-1 **Gate:** in the Output, `StoreMode` is Test. (Optional: select ReplicatedStorage, Attributes → `StoreMode` = `Test`.)
+- [ ] M-2 **Success:** click *Small Cash Pack* → toast "✅ [TEST] Small Cash Pack: +$500", cash +500 exactly once.
+- [ ] M-3 **Cancel:** set `StoreTest_Decline` = true → click a pack → "Purchase cancelled", cash unchanged. Set it back to false.
+- [ ] M-4 **Duplicate:** `StoreTest_Duplicate` = true → click a pack → cash +amount **once**, and a second toast says the duplicate was acknowledged without regranting.
+- [ ] M-5 **DataStore failure:** `StoreTest_FailSave` = true → click a pack → "Receipt pending (attempt 1/4)…" warnings. Within 15 s set it back to false → the next retry acknowledges. Cash increased **once** overall.
+- [ ] M-6 **Leave mid-purchase:** `StoreTest_DelaySeconds` = 10 → click a pack → stop Play within 10 s. No errors in Output. (The simulated receipt is dropped when you leave; real receipts are re-delivered by Roblox, which is unit-tested.)
+- [ ] M-7 **Persistence (private test experience):** buy a pack, stop, play again → cash kept.
+- [ ] M-8 **Pass:** click *VIP Membership* → "OWNED"; set `StoreTest_OwnPass_VIP` = false → it flips back to "not owned".
+- [ ] M-9 **Rate limit:** spam-click a pack 10 times quickly → at most about 3 purchases per burst are processed; nothing errors.
+- [ ] M-10 **Regression:** claim, stock, serve, upgrade, night and rewards all work as before.
+
+When real Ids exist (later): §6 of MONETIZATION.md covers Roblox's own Studio test purchases (P-1) and private-experience pass ownership (P-2).
+
+## §V: Visual slice review
 
 1. `git pull`, then rebuild (`rojo build default.project.json -o NightShift.rbxl`) or reconnect `rojo serve`.
 2. **Before importing meshes**, play once and take the screenshots in `docs/VISUAL_BENCHMARK.md` §6. These capture the procedural look.

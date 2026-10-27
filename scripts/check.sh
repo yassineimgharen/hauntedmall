@@ -22,6 +22,11 @@ if [[ -n "$out" ]]; then
 fi
 echo "no type errors"
 
+echo "== Unit tests (Lune)"
+for spec in tests/*.spec.luau; do
+	lune run "$spec"
+done
+
 echo "== Rojo build"
 mkdir -p build
 rojo build default.project.json -o build/NightShift.rbxl

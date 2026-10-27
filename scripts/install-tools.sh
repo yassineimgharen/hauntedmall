@@ -25,6 +25,7 @@ fetch rojo     "https://github.com/rojo-rbx/rojo/releases/download/v7.7.1/rojo-7
 fetch selene   "https://github.com/Kampfkarren/selene/releases/download/0.32.0/selene-0.32.0-linux.zip"
 fetch stylua   "https://github.com/JohnnyMorganz/StyLua/releases/download/v2.6.0/stylua-linux-x86_64.zip"
 fetch luau-lsp "https://github.com/JohnnyMorganz/luau-lsp/releases/download/1.70.1/luau-lsp-linux-x86_64.zip"
+fetch lune     "https://github.com/lune-org/lune/releases/download/v0.11.1/lune-0.11.1-linux-x86_64.zip"
 
 # Roblox API type definitions for luau-lsp analyze.
 if [[ ! -f "$ROOT/.tools/globalTypes.d.luau" ]]; then

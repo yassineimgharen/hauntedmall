@@ -67,6 +67,7 @@ Client: waits for `game.Loaded` and `workspace.Mall`, then starts its controller
 | `SetBeam(on, aim)` | C→S | 12 / 12 | boolean; unit Vector3; within 80° of facing; pitch limit; tool equipped; battery > 0 |
 | `AimUpdate(aim)` | C→S (unreliable) | 20 / 20 | same aim validation; ignored while beam is off |
 | `SaveSettings(t)` | C→S | 1 / 3 | known keys only, fractions in [0,1], boolean |
+| `RequestPurchase(kind, key)` | C→S | 2 / 3 | kind ∈ Product/GamePass; key must exist in `MonetizationConfig`; only *opens a prompt*, never grants |
 | `Notify(text, kind)` | S→C | — | — |
 | `NightResults(data)` | S→C | — | — |
 | `Effect(kind, payload)` | S→C | — | cosmetic only |
@@ -119,10 +120,6 @@ Adding an enemy type: add a config entry in `EnemyConfig.Types`, a builder in `s
 - `StreamingEnabled` is off for the vertical slice (small map, simpler code). Turn it on in Phase 4 once the mall grows; client code already uses `WaitForChild` for world lookups.
 - The startup log prints `[MallBuilder] built N parts`. Keep it under ~6k for the slice.
 
-## Monetization architecture (Phase 5, not active)
+## Monetization architecture
 
-`MonetizationConfig.Enabled = false` and every Id is 0. The planned design:
-- `MonetizationService` with `MarketplaceService.ProcessReceipt`. Before granting, look up `PurchaseId` in `ProcessedReceipts` (deduplication). Grant and record it in the same profile mutation, save, and only then return `PurchaseGranted`. If the profile isn't loaded, return `NotProcessedYet`.
-- Game passes are checked with `UserOwnsGamePassAsync` on join (cached) and re-checked on `PromptGamePassPurchaseFinished`. Ownership is never taken from the client's word.
-- The premium shop UI only ever *prompts*. It never grants anything.
-- Every product is cosmetic or convenience. Cash packs are capped so they never exceed what a few nights of play earns, and upgrades can't be bought with Robux.
+Implemented (Phase 1 of monetization): a single ProcessReceipt handler, idempotent persisted receipts, game-pass ownership checks, server-validated prompts, and a Studio-only test store. The store is closed (`Enabled = false`, Ids 0). Full design, guarantees and test plan: [MONETIZATION.md](MONETIZATION.md).

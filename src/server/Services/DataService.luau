@@ -32,6 +32,7 @@ type Profile = {
 	Key: string,
 	Data: { [string]: any },
 	SessionLost: boolean,
+	Saving: boolean,
 }
 
 local DataService = {}
@@ -69,6 +70,7 @@ local function defaultData(): { [string]: any }
 			Sales = 0,
 			TotalEarned = 0,
 			FusesRepaired = 0,
+			CashPurchased = 0,
 		},
 		Settings = {
 			Music = 0.6,
@@ -84,7 +86,11 @@ local function defaultData(): { [string]: any }
 			SurvivedNight = false,
 		},
 		LastEmergencyStockAt = 0,
-		ProcessedReceipts = {}, -- Phase 5: purchase ids already granted (dedupe)
+		-- Purchase ledger (see MonetizationService). Granting a product and recording its
+		-- PurchaseId happen in the same profile write, so a receipt can never be granted twice.
+		ProcessedReceipts = {}, -- [PurchaseId] = unix time granted (real Roblox receipts only)
+		TestReceipts = {}, -- [PurchaseId] = unix time (Studio simulated purchases only)
+		PurchaseHistory = {}, -- newest last, capped: { Key, ProductId, Robux, At, Test }
 		CreatedAt = os.time(),
 	}
 end
@@ -185,7 +191,7 @@ local function loadProfile(player: Player)
 	reconcile(data, defaultData())
 	sanitize(data)
 
-	local profile: Profile = { Key = key, Data = data, SessionLost = false }
+	local profile: Profile = { Key = key, Data = data, SessionLost = false, Saving = false }
 	profiles[player] = profile
 
 	if not player.Parent then
@@ -201,12 +207,19 @@ local function loadProfile(player: Player)
 end
 
 -- Returns true if the write succeeded.
+-- Saves for one profile are serialised: a later save waits for the one in flight, then
+-- snapshots the newest data, so an older snapshot can never overwrite a newer one.
 function DataService._save(player: Player, profile: Profile, release: boolean): boolean
-	if profile.SessionLost then
-		return false
-	end
 	activeSaves += 1
-	local ok = DataService._write(player, profile, release)
+	while profile.Saving do
+		task.wait(0.05)
+	end
+	local ok = false
+	if not profile.SessionLost then
+		profile.Saving = true
+		ok = DataService._write(player, profile, release)
+		profile.Saving = false
+	end
 	activeSaves -= 1
 	return ok
 end
@@ -247,6 +260,22 @@ end
 function DataService.Get(player: Player): { [string]: any }?
 	local profile = profiles[player]
 	return if profile then profile.Data else nil
+end
+
+-- True while `data` is still this player's live, writable profile (not released or lost).
+function DataService.IsActive(player: Player, data: { [string]: any }): boolean
+	local profile = profiles[player]
+	return profile ~= nil and profile.Data == data and not profile.SessionLost
+end
+
+-- Writes the profile immediately and reports whether it reached the DataStore. Used by
+-- receipt processing, which must not acknowledge a purchase until the grant is persisted.
+function DataService.SaveNow(player: Player): boolean
+	local profile = profiles[player]
+	if not profile then
+		return false
+	end
+	return DataService._save(player, profile, false)
 end
 
 function DataService.IsMock(): boolean

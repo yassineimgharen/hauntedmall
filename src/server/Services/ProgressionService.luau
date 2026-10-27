@@ -37,14 +37,20 @@ end
 
 local DAY_GOALS = { "Claimed", "Stocked", "Served", "Upgraded" }
 
-function ProgressionService.AddCash(player: Player, amount: number): boolean
+-- source "Purchase" marks Robux-bought cash so stats keep earned and bought cash apart.
+-- Never yields (receipt processing relies on that to grant and record atomically).
+function ProgressionService.AddCash(player: Player, amount: number, source: "Purchase"?): boolean
 	local data = DataService.Get(player)
 	if not data or not Validate.finite(amount) or amount < 0 then
 		return false
 	end
 	amount = math.floor(amount)
 	data.Cash += amount
-	data.Stats.TotalEarned += amount
+	if source == "Purchase" then
+		data.Stats.CashPurchased += amount
+	else
+		data.Stats.TotalEarned += amount
+	end
 	player:SetAttribute("Cash", data.Cash)
 	return true
 end

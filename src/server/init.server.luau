@@ -13,6 +13,7 @@ local SERVICE_ORDER = {
 	"EnemyService",
 	"CombatService",
 	"NightService",
+	"MonetizationService",
 }
 
 CollisionGroups.setup()

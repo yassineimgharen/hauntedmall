@@ -15,6 +15,7 @@ local RELIABLE = {
 	"Restock",
 	"SetBeam",
 	"SaveSettings",
+	"RequestPurchase",
 	-- server → client
 	"Notify",
 	"NightResults",

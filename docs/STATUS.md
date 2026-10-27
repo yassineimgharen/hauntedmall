@@ -1,6 +1,22 @@
-# Status Report: Premium Visual Slice
+# Status Report
 
 _Last updated: 2026-10-27._
+
+## Current: Monetization Phase 1 (secure foundation)
+| Item | State |
+|---|---|
+| Static checks (StyLua, selene, luau-lsp, Rojo build) | ✅ pass |
+| Receipt-processor unit tests (Lune, 17 scenarios, mutation-checked) | ✅ 17/17 |
+| Studio run of the test store | ⏳ **not yet run.** `TESTING.md` §M |
+| Real purchases | 🔒 closed by design (`Enabled = false`, Ids 0) |
+
+**Added:** `MonetizationService`, `Monetization/ReceiptProcessor`, `DevStorePanel`, `tests/ReceiptProcessor.spec.luau`, `docs/MONETIZATION.md`, Lune in the toolchain.
+**Changed:** `MonetizationConfig` (central catalog), `DataService` (serialised saves, `SaveNow`, `IsActive`, purchase ledgers), `ProgressionService.AddCash` (purchased vs earned cash), `Net` (`RequestPurchase`), server bootstrap, `UIController`, `check.sh`, `install-tools.sh`, `rokit.toml`.
+**Next (after your test):** Phase 2: VIP benefits, cash-pack store, premium store UI. See `MONETIZATION.md` §7.
+
+---
+
+## Previous: Premium Visual Slice
 
 ## Where things stand
 | Stage | State |
