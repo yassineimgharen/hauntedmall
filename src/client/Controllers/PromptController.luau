@@ -1,10 +1,12 @@
 -- Shows each shop prompt only to the players it applies to (claim → players without a
 -- shop, restock/serve → the owner). Purely cosmetic: the server re-checks everything.
+-- Also answers "What's this?" info prompts (closed storefronts) locally, with no server call.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 
 local EconomyConfig = require(game:GetService("ReplicatedStorage").Shared.Config.EconomyConfig)
+local LocalEvents = require(script.Parent.Parent.LocalEvents)
 
 local PromptController = {}
 
@@ -29,7 +31,20 @@ local function refresh()
 	end
 end
 
+local function bindInfo(prompt: Instance)
+	if prompt:IsA("ProximityPrompt") then
+		prompt.Triggered:Connect(function()
+			LocalEvents.Notify:Fire(prompt:GetAttribute("InfoText") or "Coming soon!", "info")
+		end)
+	end
+end
+
 function PromptController.Start()
+	for _, prompt in CollectionService:GetTagged("InfoPrompt") do
+		bindInfo(prompt)
+	end
+	CollectionService:GetInstanceAddedSignal("InfoPrompt"):Connect(bindInfo)
+
 	local restock = EconomyConfig.Restock
 	for _, shop in CollectionService:GetTagged("Shop") do
 		for _, descendant in shop:GetDescendants() do

@@ -2,6 +2,25 @@
 
 _Last updated: 2026-10-27._
 
+## Current: Focused fixes (spiders, escalators, closed shops)
+Static checks ✅ · unit tests 17/17 ✅ · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §F).
+
+| Issue | Root cause | Change |
+|---|---|---|
+| Spiders unescapable | Crawler speed 17 > player 16; bites landed instantly with no warning; no per-player damage limit (4 crawlers ≈ 40 dmg/s); no night scaling; no spawn protection | Night-1 speed 12.5, bite 10 with 0.6 s telegraphed wind-up (dodgeable), 1.8 s cooldown, 1.1 s per-player hit grace, knockback, warning flash, night scaling with caps (speed never above 15.5), smaller early waves, 3 s spawn ForceField |
+| Escalators decorative only | Ramp was static collision; treads only animated visually | Ramp is now an anchored **conveyor** (`AssemblyLinearVelocity`): west carries up, east carries down, 7 studs/s; treads synced; ▲ UP / ▼ DOWN signs |
+| "Closed shops" | Intentional: 16 atrium storefronts are decorative, reserved for a future expansion; never interactive or unlockable yet | Kept closed; added a "What's this?" info prompt on each, plus the Food Court gate |
+
+Difficulty curve (solo, from `EnemyConfig`):
+
+| Night | Crawler speed | Bite | HP | Sight | Wave | Max alive | Fastest possible down (10 hits ≥ 1.1 s apart) |
+|---|---|---|---|---|---|---|---|
+| 1 | 12.5 | 10 | 45 | 45 | 3 | 7 | ≈ 9.9 s |
+| 3 | 13.7 | 13 | 57 | 55 | 7 | 11 | ≈ 7.7 s |
+| 6+ | 15.5 (cap) | 17.5 | 75 | 70 | 13 | 14 | ≈ 5.5 s |
+
+---
+
 ## Current: Monetization Phase 1 (secure foundation)
 | Item | State |
 |---|---|

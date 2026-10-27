@@ -24,6 +24,8 @@ Answers to your questions:
 9. **Do NPC customers enter the right shop?** By design, yes. Each customer is assigned to one owned shop with stock and walks a route built from that shop's own navigation points. This is code-verified, not Studio-verified (see §3).
 10. **Can players buy upgrades and manage merchandise?** Upgrades: you confirmed they work. Merchandise is currently a single stock pool per shop; choosing products is Phase 2/3 work.
 
+**Update (later build):** each shuttered storefront and the Food Court gate now has a "What's this? [F]" prompt explaining that it opens in a future expansion and pointing to the East Wing.
+
 **Real problem found:** the "OPENING SOON" sign appeared on a random 50% of the shutters, so half of them looked like real, closed shops. **Fixed:** every shutter now reads "COMING SOON / 🔒 future update", and a marker points new players to the East Wing.
 
 ## 2. Tutorial objectives: can each be completed?

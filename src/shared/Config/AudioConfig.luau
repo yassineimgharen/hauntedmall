@@ -22,6 +22,7 @@ local AudioConfig = {
 		MonsterSpawn = "",
 		MonsterHit = "",
 		PlayerHurt = "",
+		Warning = "", -- monster wind-up cue (pick a short hiss/screech)
 	},
 	Volumes = {
 		Music = 0.35,

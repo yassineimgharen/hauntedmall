@@ -7,10 +7,10 @@ local RunService = game:GetService("RunService")
 
 local WorldFxController = {}
 
-local ESCALATOR_SPEED = 0.035 -- loop fraction per second
 local EYE_HIDE_DISTANCE = 16
 
-type Escalator = { Bottom: Vector3, Top: Vector3, Flat: Vector3, Count: number, Steps: { BasePart } }
+-- Rate = loop fraction per second (signed), matching the conveyor ramp's surface speed.
+type Escalator = { Bottom: Vector3, Top: Vector3, Flat: Vector3, Count: number, Rate: number, Steps: { BasePart } }
 type Eyes = { Model: Model, Parts: { BasePart }, Center: Vector3, NextBlink: number }
 
 local player = Players.LocalPlayer
@@ -34,6 +34,9 @@ local function registerEscalator(model: Instance)
 		Top = top,
 		Flat = Vector3.new(dir.X, 0, dir.Z),
 		Count = model:GetAttribute("StepCount") :: number,
+		Rate = ((model:GetAttribute("Speed") :: number?) or 7)
+			/ dir.Magnitude
+			* ((model:GetAttribute("Direction") :: number?) or 1),
 		Steps = steps,
 	})
 end
@@ -77,7 +80,7 @@ function WorldFxController.Start()
 
 		for _, escalator in escalators do
 			if (escalator.Bottom - cameraPosition).Magnitude < 160 then
-				local offset = clock * ESCALATOR_SPEED
+				local offset = clock * escalator.Rate
 				for index, step in escalator.Steps do
 					local f = ((index - 1) / escalator.Count + offset) % 1
 					local position = escalator.Bottom:Lerp(escalator.Top, f) - Vector3.new(0, 0.5, 0)

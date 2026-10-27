@@ -161,10 +161,11 @@ local function runWaves(token: {})
 			if nightToken ~= token then
 				return
 			end
-			if EnemyService.AliveCount() < EnemyConfig.Waves.MaxAlive then
+			local night = GameStateService.GetNight()
+			if EnemyService.AliveCount() < EnemyConfig.MaxAlive(night, #Players:GetPlayers()) then
 				local point = pickSpawn()
 				if point then
-					EnemyService.Spawn("ShadowCrawler", point.Position)
+					EnemyService.Spawn("ShadowCrawler", point.Position, night)
 				end
 			end
 			task.wait(EnemyConfig.Waves.SpawnStagger)

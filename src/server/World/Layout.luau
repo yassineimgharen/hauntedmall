@@ -48,11 +48,13 @@ local Layout = {
 		HalfWidth = 64,
 	},
 
+	-- Bottom/top centres of the walking surface. Direction 1 carries riders up, -1 down;
+	-- the collision ramp is a conveyor moving at EscalatorSpeed studs/s along the slope.
 	Escalators = {
-		-- bottom/top centres of the walking surface
-		{ Bottom = Vector3.new(-27, 0, -21), Top = Vector3.new(-27, 24, 20.7) },
-		{ Bottom = Vector3.new(27, 0, 21), Top = Vector3.new(27, 24, -20.7) },
+		{ Bottom = Vector3.new(-27, 0, -21), Top = Vector3.new(-27, 24, 20.7), Direction = 1 },
+		{ Bottom = Vector3.new(27, 0, 21), Top = Vector3.new(27, 24, -20.7), Direction = -1 },
 	},
+	EscalatorSpeed = 7, -- players walk at 16, so riders can still walk with or against it
 
 	-- faces north so the first view is the fountain, dome and the big neon sign
 	PlayerSpawn = CFrame.new(0, 0.6, -52) * CFrame.Angles(0, math.pi, 0),

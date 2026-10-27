@@ -305,6 +305,14 @@ function Props.facade(
 		GuiName = "Soon",
 	})
 	rng:NextNumber() -- keeps the seeded prop layout identical to earlier builds
+	Props.infoPrompt(
+		shutter,
+		name,
+		string.format(
+			"🔒 %s is closed: it opens in a future mall expansion. Run your own store in the East Wing: follow the marker!",
+			name
+		)
+	)
 
 	-- dark gap under a half-closed shutter, sometimes with something watching
 	Builder.decor({
@@ -317,6 +325,20 @@ function Props.facade(
 		Props.lurkerEyes(cf * CFrame.new(rng:NextNumber(-width / 3, width / 3), 0.7, 0.3), model, 1)
 	end
 	return model
+end
+
+-- "What's this?" prompt on something non-interactive; the client shows InfoText locally.
+function Props.infoPrompt(part: BasePart, title: string, text: string): ProximityPrompt
+	local prompt = Builder.prompt(part, {
+		Name = "InfoPrompt",
+		ActionText = "What's this?",
+		ObjectText = title,
+		MaxActivationDistance = 12,
+		KeyboardKeyCode = Enum.KeyCode.F, -- E stays free for gameplay prompts nearby
+	})
+	prompt:SetAttribute("InfoText", text)
+	Builder.tag(prompt, "InfoPrompt")
+	return prompt
 end
 
 function Props.fuseBox(cf: CFrame, id: string, zone: string, parent: Instance): Model

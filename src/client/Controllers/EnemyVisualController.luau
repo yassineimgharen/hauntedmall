@@ -30,6 +30,7 @@ local camera = workspace.CurrentCamera
 local visuals: { [Model]: Visual } = {}
 local EYE_COLOR = Palette.ShadowEye
 local BURN_COLOR = Color3.fromRGB(255, 250, 230)
+local WARN_COLOR = Color3.fromRGB(255, 60, 40) -- eyes flare red while winding up an attack
 
 local function serverNow(): number
 	return workspace:GetServerTimeNow()
@@ -236,6 +237,13 @@ local function animate(visual: Visual, dt: number, now: number)
 		end
 		-- lean into the chase; shiver while being burned
 		offset *= CFrame.Angles(-0.14 * moving, 0, 0)
+		-- attack telegraph: rear up, head raised, before the bite lands
+		local windup = model:GetAttribute("Windup") or 0.6
+		local sinceWindup = serverNow() - (model:GetAttribute("WindupAt") or 0)
+		if sinceWindup >= 0 and sinceWindup < windup then
+			local k = math.sin(math.min(sinceWindup / windup, 1) * math.pi * 0.5)
+			offset *= CFrame.new(0, 0.9 * k, 0.5 * k) * CFrame.Angles(0.55 * k, 0, 0)
+		end
 		if serverNow() < (model:GetAttribute("LitUntil") or 0) then
 			offset *= CFrame.new((math.random() - 0.5) * 0.15, 0, (math.random() - 0.5) * 0.15)
 		end
@@ -245,7 +253,11 @@ local function animate(visual: Visual, dt: number, now: number)
 	local lit = serverNow() < (model:GetAttribute("LitUntil") or 0)
 	visual.Sparks.Enabled = lit
 	visual.Flash.Enabled = lit
-	local eyeColor = if lit and math.floor(now * 20) % 2 == 0 then BURN_COLOR else EYE_COLOR
+	local windingUp = serverNow() - (model:GetAttribute("WindupAt") or 0) < (model:GetAttribute("Windup") or 0.6)
+	local eyeColor = if windingUp
+		then WARN_COLOR
+		elseif lit and math.floor(now * 20) % 2 == 0 then BURN_COLOR
+		else EYE_COLOR
 	for _, eye in visual.Eyes do
 		eye.Color = eyeColor
 	end

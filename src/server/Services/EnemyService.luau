@@ -33,6 +33,7 @@ export type Enemy = {
 	Contributors: { [Player]: number },
 	NextThink: number,
 	LastAttack: number,
+	WindupUntil: number,
 	LastDrain: number,
 	StunnedUntil: number,
 	TargetShop: ShopService.Shop?,
@@ -156,17 +157,47 @@ local function face(enemy: Enemy, point: Vector3)
 	end
 end
 
+local lastHitAt: { [Player]: number } = {}
+
+-- The bite lands only if the target is still in reach after the wind-up (dodgeable), and
+-- only if that player hasn't just been hit by anything (swarm protection).
+local function resolveBite(enemy: Enemy, player: Player)
+	if enemy.Dead or os.clock() < enemy.StunnedUntil then
+		return
+	end
+	enemy.Model:SetAttribute("AttackAt", serverNow())
+	local root = livingRoot(player)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid then
+		return
+	end
+	local offset = root.Position - enemy.Root.Position
+	if offset.Magnitude > enemy.Config.AttackRange + EnemyConfig.Combat.DodgeMargin then
+		return -- dodged
+	end
+	local now = os.clock()
+	if now - (lastHitAt[player] or 0) < EnemyConfig.Combat.PlayerHitGrace then
+		return
+	end
+	lastHitAt[player] = now
+	humanoid:TakeDamage(enemy.Config.Damage)
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	Notify.effect(player, "Hit", {
+		Damage = enemy.Config.Damage,
+		Direction = if flat.Magnitude > 0.01 then flat.Unit else nil,
+	})
+end
+
+-- Telegraphed attack: stop, rear up (clients see WindupAt), warn the target, then bite.
 local function attackPlayer(enemy: Enemy, player: Player, now: number)
-	if now - enemy.LastAttack < enemy.Config.AttackCooldown then
+	if now < enemy.WindupUntil or now - enemy.LastAttack < enemy.Config.AttackCooldown then
 		return
 	end
 	enemy.LastAttack = now
-	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid:TakeDamage(enemy.Config.Damage)
-		enemy.Model:SetAttribute("AttackAt", serverNow())
-		Notify.effect(player, "Hit", { Damage = enemy.Config.Damage })
-	end
+	enemy.WindupUntil = now + enemy.Config.AttackWindup
+	enemy.Model:SetAttribute("WindupAt", serverNow())
+	Notify.effect(player, "Danger", { Windup = enemy.Config.AttackWindup })
+	task.delay(enemy.Config.AttackWindup, resolveBite, enemy, player)
 end
 
 local function pickShop(position: Vector3): ShopService.Shop?
@@ -192,6 +223,10 @@ local function think(enemy: Enemy, now: number)
 	humanoid.WalkSpeed = config.WalkSpeed
 
 	local position = enemy.Root.Position
+	if now < enemy.WindupUntil then
+		humanoid:MoveTo(position) -- planted while rearing up: the player's window to escape
+		return
+	end
 
 	-- stuck detection
 	if (position - enemy.LastPosition).Magnitude > 1 then
@@ -257,13 +292,14 @@ local function remove(enemy: Enemy)
 	end
 end
 
-function EnemyService.Spawn(typeId: string, position: Vector3): Enemy?
+-- night (1 = first) scales speed, damage, health and detection (EnemyConfig.Scaled).
+function EnemyService.Spawn(typeId: string, position: Vector3, night: number?): Enemy?
 	local build = BUILDERS[typeId]
-	local config = EnemyConfig.Types[typeId]
-	if not build or not config then
+	if not build or not EnemyConfig.Types[typeId] then
 		warn("[EnemyService] unknown enemy type " .. tostring(typeId))
 		return nil
 	end
+	local config = EnemyConfig.Scaled(typeId, night or 1)
 
 	local model = build()
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
@@ -275,6 +311,7 @@ function EnemyService.Spawn(typeId: string, position: Vector3): Enemy?
 	model:SetAttribute("EnemyType", typeId)
 	model:SetAttribute("HP", config.MaxHealth)
 	model:SetAttribute("MaxHP", config.MaxHealth)
+	model:SetAttribute("Windup", config.AttackWindup)
 	model:SetAttribute("SpawnedAt", serverNow())
 	CollectionService:AddTag(model, "Enemy")
 	model.Parent = folder
@@ -292,6 +329,7 @@ function EnemyService.Spawn(typeId: string, position: Vector3): Enemy?
 		Contributors = {},
 		NextThink = now + 0.8 + rng:NextNumber(0, EnemyConfig.AIThinkInterval), -- emerge first
 		LastAttack = 0,
+		WindupUntil = 0,
 		LastDrain = 0,
 		StunnedUntil = 0,
 		TargetShop = nil,
@@ -361,6 +399,9 @@ function EnemyService.Init()
 end
 
 function EnemyService.Start()
+	Players.PlayerRemoving:Connect(function(player)
+		lastHitAt[player] = nil
+	end)
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		for _, enemy in table.clone(enemies) do

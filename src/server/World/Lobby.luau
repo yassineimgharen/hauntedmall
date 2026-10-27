@@ -470,21 +470,61 @@ local function buildFountain(parent: Instance)
 	addSprays(spout)
 end
 
-local function buildEscalator(bottom: Vector3, top: Vector3, parent: Instance, index: number)
+local function escalatorSign(position: Vector3, facing: Vector3, text: string, color: Color3, parent: Instance)
+	Builder.decor({
+		Parent = parent,
+		Size = Vector3.new(0.2, 3, 0.2),
+		CFrame = CFrame.new(position + Vector3.new(0, 1.5, 0)),
+		Color = Palette.Gold,
+		Material = Enum.Material.Metal,
+	})
+	local plate = Builder.decor({
+		Parent = parent,
+		Size = Vector3.new(2.8, 1.1, 0.15),
+		CFrame = CFrame.lookAt(position + Vector3.new(0, 3.5, 0), position + Vector3.new(0, 3.5, 0) + facing),
+		Color = Color3.fromRGB(18, 13, 30),
+	})
+	Builder.label(plate, Enum.NormalId.Front, text, { Color = color, Font = FONT_HEADING })
+end
+
+local function buildEscalator(bottom: Vector3, top: Vector3, parent: Instance, index: number, direction: number)
 	local model = Builder.model("Escalator" .. index, parent)
 	local dir = top - bottom
 	local length = dir.Magnitude
 	local flat = Vector3.new(dir.X, 0, dir.Z)
 	local cf = CFrame.lookAt((bottom + top) / 2, top)
 
-	-- invisible walking ramp (top surface passes through bottom & top)
-	Builder.part({
+	-- Walking ramp (top surface passes through bottom & top). It is anchored, and its
+	-- AssemblyLinearVelocity makes it a conveyor: the physics engine carries anything
+	-- standing on it, for every player at once, with no scripts or teleporting.
+	local ramp = Builder.part({
 		Name = "Ramp",
 		Parent = model,
 		Size = Vector3.new(6, 0.6, length + 1),
 		CFrame = cf * CFrame.new(0, -0.3, 0),
 		Transparency = 1,
 	})
+	ramp.AssemblyLinearVelocity = dir.Unit * Layout.EscalatorSpeed * direction
+	model:SetAttribute("Direction", direction)
+	model:SetAttribute("Speed", Layout.EscalatorSpeed)
+
+	local right = cf.RightVector
+	local along = flat.Unit
+	local up = direction > 0
+	escalatorSign(
+		bottom - along * 1.6 + right * 4.2,
+		-along,
+		if up then "▲ UP" else "⛔ DOWN ONLY",
+		if up then Palette.NeonGreen else Palette.NeonRed,
+		model
+	)
+	escalatorSign(
+		Vector3.new(top.X, top.Y, top.Z) + along * 1 + right * 4.2,
+		along,
+		if up then "⛔ UP ONLY" else "▼ DOWN",
+		if up then Palette.NeonRed else Palette.NeonGreen,
+		model
+	)
 	Builder.part({
 		Parent = model,
 		Size = Vector3.new(7.4, 2.6, length),
@@ -842,7 +882,7 @@ local function buildGameplayMarkers(parent: Instance)
 		CanCollide = false,
 	}, "SpawnLocation") :: SpawnLocation
 	spawn.Neutral = true
-	spawn.Duration = 0
+	spawn.Duration = 3 -- brief ForceField after (re)spawning, so nobody is bitten on arrival
 
 	Props.fuseBox(
 		CFrame.lookAt(Vector3.new(HALF, 4.5, -30), Vector3.new(0, 4.5, -30)),
@@ -889,7 +929,7 @@ function Lobby.build(parent: Instance)
 	buildCenterpiece(model)
 	buildFountain(model)
 	for i, escalator in Layout.Escalators do
-		buildEscalator(escalator.Bottom, escalator.Top, model, i)
+		buildEscalator(escalator.Bottom, escalator.Top, model, i, escalator.Direction)
 	end
 	buildEntranceAndPlaza(model, rng)
 	buildFacades(model, rng)

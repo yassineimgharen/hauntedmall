@@ -26,7 +26,31 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §M: Monetization Phase 1 (test this build first)
+## §F: Fixes: spider difficulty, escalators, closed shops (test this build first)
+
+Use `FastPhases` = true. Use `SkipPhase` in the Server view to reach night quickly.
+
+**Spiders (Shadow Crawlers)**
+- [ ] F-1 Night 1: run away in a straight line from a crawler. You pull away (you 16 vs crawler 12.5).
+- [ ] F-2 Before every bite the crawler **stops, rears up, its eyes flare red**, and you see an orange edge flash with **"⚠ DODGE!"**, about 0.6 s of warning.
+- [ ] F-3 Step away during the wind-up: the bite misses (no damage).
+- [ ] F-4 When bitten: red vignette, camera shake, a red "-10" and a knockback push away from the crawler.
+- [ ] F-5 Stand among 3 crawlers on purpose: damage arrives at most about once per second (not all at once). You survive roughly 10 s or more on night 1.
+- [ ] F-6 After respawning you get a few seconds of ForceField sparkle and can't be bitten.
+- [ ] F-7 Later nights feel harder (faster, harder-hitting, more crawlers). Expected values per night are in the STATUS table. Optional: note your FPS with 10+ crawlers.
+
+**Escalators**
+- [ ] F-8 West escalator (sign **▲ UP**): stand still on it and you ride smoothly to the balcony with no jitter. Walking forward makes you faster; you can walk back down against it.
+- [ ] F-9 East escalator (sign **▼ DOWN**): from the balcony, stand on it and ride down.
+- [ ] F-10 Stepping on and off at both ends feels normal (no launch, no sticking). The moving treads match your riding speed and direction.
+- [ ] F-11 Two-player test (Clients and Servers, 2 players): both ride at the same time; each sees the other ride smoothly.
+
+**Closed shops**
+- [ ] F-12 Walk to Velvet Arcade (or any shuttered atrium store): a **"What's this? [F]"** prompt appears. Pressing it shows a toast explaining it opens in a future expansion and pointing to the East Wing.
+- [ ] F-13 Same at the Food Court gate at the end of the East Wing.
+- [ ] F-14 Regression: the 6 East Wing shops still claim, stock, serve and upgrade normally.
+
+## §M: Monetization Phase 1
 
 No Robux is involved anywhere in this section. The store runs in **Studio test mode**.
 

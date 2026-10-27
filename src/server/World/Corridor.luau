@@ -161,6 +161,11 @@ local function buildGate(parent: Instance)
 		Color = Builder.shade(Palette.Chrome, -0.3),
 		Material = Enum.Material.DiamondPlate,
 	})
+	Props.infoPrompt(
+		gate,
+		"Food Court",
+		"🍔 The Food Court is closed for renovation: it opens in a future update. Until then, the six East Wing shops are open for lease!"
+	)
 	Builder.label(gate, Enum.NormalId.Left, "FOOD COURT\nCOMING SOON", {
 		Color = Color3.fromRGB(235, 235, 245),
 		Font = FONT_HEADING,

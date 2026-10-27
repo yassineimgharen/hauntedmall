@@ -398,8 +398,19 @@ function Hud:ShowBanner(title: string, subtitle: string, color: Color3?)
 	end)
 end
 
+-- Short orange edge pulse + "!" when a monster starts winding up an attack on you.
+function Hud:FlashWarning()
+	for _, frame in self.Vignette do
+		frame.BackgroundColor3 = C.Gold
+		frame.BackgroundTransparency = 0.55
+		TweenService:Create(frame, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+	end
+	self:Popup("⚠ DODGE!", C.Gold, UDim2.fromScale(0.5, 0.6))
+end
+
 function Hud:FlashDamage()
 	for _, frame in self.Vignette do
+		frame.BackgroundColor3 = C.Red
 		frame.BackgroundTransparency = 0.35
 		TweenService:Create(frame, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
 	end

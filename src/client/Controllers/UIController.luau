@@ -6,8 +6,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
+local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local LocalEvents = require(script.Parent.Parent.LocalEvents)
 local AudioController = require(script.Parent.AudioController)
 local Create = require(script.Parent.Parent.UI.Create)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -106,6 +108,9 @@ function UIController.Start()
 	Net.get("Notify").OnClientEvent:Connect(function(text: string, kind: string)
 		notifications:Push(text, kind)
 	end)
+	LocalEvents.Notify:Connect(function(text: string, kind: string)
+		notifications:Push(text, kind)
+	end)
 
 	Net.get("NightResults").OnClientEvent:Connect(function(data)
 		task.delay(2.5, function()
@@ -118,7 +123,17 @@ function UIController.Start()
 	Net.get("Effect").OnClientEvent:Connect(function(kind: string, payload)
 		if kind == "Hit" then
 			hud:FlashDamage()
+			hud:Popup("-" .. tostring(payload.Damage or 0), Theme.Colors.Red, UDim2.fromScale(0.5, 0.55))
 			AudioController.Play("PlayerHurt")
+			-- knock the player away from the bite so they can break free (client owns its character)
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root and typeof(payload.Direction) == "Vector3" then
+				local push = payload.Direction * EnemyConfig.Combat.Knockback + Vector3.new(0, 14, 0)
+				root:ApplyImpulse(push * root.AssemblyMass)
+			end
+		elseif kind == "Danger" then
+			hud:FlashWarning()
+			AudioController.Play("Warning")
 		elseif kind == "Sale" then
 			if typeof(payload.Position) == "Vector3" then
 				local text = "+"
