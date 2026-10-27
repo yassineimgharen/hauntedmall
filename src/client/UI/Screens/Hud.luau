@@ -76,7 +76,6 @@ function Hud.new(root: Frame, callbacks: { OpenShop: () -> (), OpenSettings: () 
 		Parent = root,
 	})
 	self.Callbacks = callbacks
-	self.Served = false
 	self.LastCash = player:GetAttribute("Cash")
 	self:_buildPhase()
 	self:_buildStats()
@@ -195,7 +194,7 @@ end
 function Hud:_buildGoals()
 	local panel = Components.panel({
 		Name = "Goals",
-		Size = UDim2.fromOffset(250, 176),
+		Size = UDim2.fromOffset(270, 214),
 		Position = UDim2.fromOffset(16, 126),
 		BackgroundTransparency = 0.2,
 		Parent = self.Root,
@@ -227,6 +226,17 @@ function Hud:_buildGoals()
 			Parent = list,
 		})
 	end
+	self.GoalHint = Create.text({
+		Size = UDim2.new(1, -24, 0, 34),
+		Position = UDim2.new(0, 12, 1, -42),
+		Text = "",
+		TextScaled = false,
+		TextSize = 14,
+		TextWrapped = true,
+		TextColor3 = C.Gold,
+		FontFace = Theme.Fonts.Bold,
+		Parent = panel,
+	})
 end
 
 function Hud:_buildVitals()
@@ -460,47 +470,104 @@ function Hud:WorldPopup(position: Vector3, text: string, color: Color3)
 	end)
 end
 
-function Hud:MarkServed()
-	self.Served = true
-end
+-- Tutorial steps are persisted server-side (Tut_* attributes), so they never un-tick.
+local DAY_STEPS = {
+	{
+		Flag = "Claimed",
+		Text = "Claim a shop in the East Wing",
+		Hint = "Follow the marker to a FOR LEASE stand and press E.",
+	},
+	{
+		Flag = "Stocked",
+		Text = "Order stock at your 📦 crates",
+		Hint = "The crates are in your shop's back corner. Press E.",
+	},
+	{
+		Flag = "Served",
+		Text = "Serve a customer at the register",
+		Hint = "When a 💬 customer waits at your till, press E for a tip.",
+	},
+	{ Flag = "Upgraded", Text = "Buy an upgrade", Hint = "Press B (or 🏪) and pick an upgrade you can afford." },
+}
 
 function Hud:_updateGoals()
 	local phase = ReplicatedStorage:GetAttribute("Phase")
-	local function row(done: boolean, text: string): string
-		return (if done then "✅ " else "⬜ ") .. text
-	end
-	local goals
+	local rows: { { Text: string, State: "done" | "next" | "todo" | "info" } } = {}
+	local hint = ""
+
 	if phase == "Night" or phase == "Dusk" then
 		local repaired = ReplicatedStorage:GetAttribute("FusesRepaired") or 0
 		local total = ReplicatedStorage:GetAttribute("FusesTotal") or 3
 		local equipped = player.Character ~= nil and player.Character:FindFirstChild("Flashlight") ~= nil
 		self.GoalsTitle.Text = "NIGHT SHIFT"
-		goals = {
-			row(equipped, "Equip flashlight [1], hold to shine"),
-			row(repaired >= total, string.format("Repair fuse boxes (%d/%d)", repaired, total)),
-			row(false, "Defend your shop's stock"),
-			row(false, "Survive until dawn"),
+		rows = {
+			{ Text = "Equip your flashlight [1]", State = if equipped then "done" else "next" },
+			{
+				Text = string.format("Repair fuse boxes (%d/%d)", repaired, total),
+				State = if repaired >= total then "done" elseif equipped then "next" else "todo",
+			},
+			{ Text = "Defend your shop's stock", State = "info" },
+			{ Text = "Survive until dawn", State = "info" },
 		}
+		hint = if equipped
+			then "Hold click / 🔦 to burn shadows. Follow the ⚡ marker to a fuse box."
+			else "Press 1 (or tap the flashlight in your hotbar)."
+	elseif player:GetAttribute("Tut_Completed") then
+		local remaining = (ReplicatedStorage:GetAttribute("PhaseStartedAt") or 0)
+			+ (ReplicatedStorage:GetAttribute("PhaseDuration") or 0)
+			- workspace:GetServerTimeNow()
+		local stock = player:GetAttribute("ShopStock") or 0
+		self.GoalsTitle.Text = "DAILY ROUTINE"
+		rows = {
+			{
+				Text = string.format("Keep shelves stocked (%d/%d)", stock, player:GetAttribute("ShopMaxStock") or 0),
+				State = if stock > 0 then "done" else "next",
+			},
+			{ Text = "Serve customers for +50% tips", State = "info" },
+			{ Text = "Upgrade 🔦 Lens & 🔋 Battery", State = "info" },
+			{
+				Text = if phase == "Day"
+					then "Night falls in " .. Format.time(remaining)
+					else "Get ready for the night",
+				State = "info",
+			},
+		}
+		hint = if stock > 0 then "" else "Your shelves are empty. Order stock at your crates."
 	else
-		local upgraded = false
-		for _, name in { "Shelves", "Quality", "Appeal", "Lens", "Battery" } do
-			if (player:GetAttribute("Upg_" .. name) or 0) > 0 then
-				upgraded = true
-			end
-		end
-		local hasShop = player:GetAttribute("ShopId") ~= nil
 		self.GoalsTitle.Text = "SHIFT GOALS"
-		goals = {
-			row(hasShop, "Claim a shop in the East Wing"),
-			row(hasShop and ((player:GetAttribute("ShopStock") or 0) > 0 or self.Served), "Order stock at your crates"),
-			row(self.Served, "Serve a customer at the register"),
-			row(upgraded, "Buy an upgrade [B]"),
-		}
+		local nextFound = false
+		for _, step in DAY_STEPS do
+			local done = player:GetAttribute("Tut_" .. step.Flag) == true
+			if step.Flag == "Claimed" and player:GetAttribute("ShopId") ~= nil then
+				done = true
+			end
+			local state: "done" | "next" | "todo" = "todo"
+			if done then
+				state = "done"
+			elseif not nextFound then
+				nextFound = true
+				state = "next"
+				hint = step.Hint
+				if step.Flag ~= "Claimed" and player:GetAttribute("ShopId") == nil then
+					hint = "Claim a shop again first (shops reset when you leave a server)."
+				end
+			end
+			table.insert(rows, { Text = step.Text, State = state })
+		end
 	end
-	for i, text in goals do
-		self.GoalRows[i].Text = text
-		self.GoalRows[i].TextColor3 = if text:sub(1, 3) == "✅" then C.Green else C.Text
+
+	local styles = {
+		done = { "✅ ", C.Green },
+		next = { "▶ ", C.Gold },
+		todo = { "⬜ ", C.TextDim },
+		info = { "• ", C.Text },
+	}
+	for i, row in rows do
+		local style = styles[row.State]
+		self.GoalRows[i].Text = style[1] .. row.Text
+		self.GoalRows[i].TextColor3 = style[2]
 	end
+	self.GoalHint.Text = hint
 end
 
 function Hud:_updatePhase()

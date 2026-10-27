@@ -118,9 +118,6 @@ function UIController.Start()
 			hud:FlashDamage()
 			AudioController.Play("PlayerHurt")
 		elseif kind == "Sale" then
-			if payload.Tip and payload.Tip > 0 then
-				hud:MarkServed()
-			end
 			if typeof(payload.Position) == "Vector3" then
 				local text = "+"
 					.. Format.cash(payload.Amount or 0)

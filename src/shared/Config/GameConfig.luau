@@ -22,6 +22,10 @@ local GameConfig = {
 
 	PlayerMaxHealth = 100,
 	AutosaveInterval = 60,
+
+	-- Studio playtests read/write a separate DataStore so testing can never touch real
+	-- player saves, even when "Studio Access to API Services" is on in the live experience.
+	StudioDataStoreSuffix = "_Studio",
 }
 
 export type Phase = "Intermission" | "Day" | "Dusk" | "Night" | "Dawn"

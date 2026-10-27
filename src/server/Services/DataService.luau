@@ -19,6 +19,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 
 local STORE_NAME = "NightShift_PlayerData_v1"
+	.. (if RunService:IsStudio() then GameConfig.StudioDataStoreSuffix else "")
 local SCHEMA_VERSION = 1
 local LOCK_TTL = GameConfig.AutosaveInterval * 3
 local LOAD_ATTEMPTS = 6
@@ -74,6 +75,15 @@ local function defaultData(): { [string]: any }
 			Sfx = 0.8,
 			ReducedEffects = false,
 		},
+		Tutorial = {
+			Claimed = false,
+			Stocked = false,
+			Served = false,
+			Upgraded = false,
+			Completed = false,
+			SurvivedNight = false,
+		},
+		LastEmergencyStockAt = 0,
 		ProcessedReceipts = {}, -- Phase 5: purchase ids already granted (dedupe)
 		CreatedAt = os.time(),
 	}

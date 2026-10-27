@@ -57,6 +57,8 @@ local PANTS = {
 local templates: { Model } = {}
 local customers: { Customer } = {}
 local nextSpawn: { [any]: number } = {}
+local lastWaitNotice: { [any]: number } = {}
+local WAIT_NOTICE_COOLDOWN = 20
 local folder: Folder
 local rng = Random.new()
 
@@ -298,6 +300,11 @@ local function run(customer: Customer)
 	customer.State = "Waiting"
 	setBubble(customer, "💬")
 	updateWaiting(customer.Shop)
+	local owner = customer.Shop.Owner
+	if owner and os.clock() - (lastWaitNotice[customer.Shop] or 0) > WAIT_NOTICE_COOLDOWN then
+		lastWaitNotice[customer.Shop] = os.clock()
+		Notify.player(owner, "💬 A customer is waiting at your register — serve them for a tip!", "info")
+	end
 
 	local deadline = os.clock() + EconomyConfig.AutoCheckoutDelay
 	while customer.State == "Waiting" and os.clock() < deadline do

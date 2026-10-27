@@ -23,6 +23,7 @@ scripts/check.sh             # format check, lint, type analysis, build → buil
 | [docs/ASSETS.md](docs/ASSETS.md) | Asset list, Blender → Studio pipeline, audio/animation plan |
 | [docs/TESTING.md](docs/TESTING.md) | Windows setup and Studio test checklist |
 | [docs/STATUS.md](docs/STATUS.md) | Current phase QC report: done, missing, risks |
+| [docs/AUDIT.md](docs/AUDIT.md) | Full system audit, shop-shutter behavior, DataStore warning explained |
 
 ## Tuning
 Every gameplay number is in `src/shared/Config/`: phase lengths, economy, upgrades, enemies, waves, flashlight, collectibles, lighting looks, and the palette.

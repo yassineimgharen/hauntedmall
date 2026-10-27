@@ -166,12 +166,9 @@ function ShopPanel:Refresh()
 		self.SetStock(if max > 0 then stock / max else 0)
 		self.StockBar.Visible = true
 		self.RestockButton.Visible = true
-		local cost = EconomyConfig.Restock.Units * EconomyConfig.Restock.CostPerUnit
-		Components.setButtonEnabled(
-			self.RestockButton,
-			stock < max and cash >= math.min(cost, (max - stock) * EconomyConfig.Restock.CostPerUnit),
-			C.Green
-		)
+		-- The server buys a partial order when cash is short (or a free emergency delivery
+		-- when the shelves are empty), so the button only needs free shelf space.
+		Components.setButtonEnabled(self.RestockButton, stock < max, C.Green)
 	else
 		self.StatusTitle.Text = "No shop yet"
 		self.StockLabel.Text = "Walk into the East Wing and claim an empty store — it's free!"

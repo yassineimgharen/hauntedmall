@@ -1,50 +1,37 @@
-# Phase 1 + 2 Quality-Control Report
+# Status Report: Phase 1 (gameplay verification and bug fixing)
 
-_Last updated: 2026-10-27_
+_Last updated: 2026-10-27. Previous slice (foundation + vertical slice): built, and partly confirmed by you in Studio._
 
-## 1. Static checks (run on Ubuntu, `scripts/check.sh`)
+## Static checks (`scripts/check.sh`, run on Ubuntu)
 | Check | Result |
 |---|---|
-| StyLua format check | ✅ pass |
-| selene lint (roblox std) | ✅ 0 errors, 0 warnings |
-| luau-lsp type analysis (Roblox API definitions, sourcemap) | ✅ no type errors |
-| Rojo 7.7.1 build → `build/NightShift.rbxl` | ✅ builds |
-| **Roblox Studio runtime** | ⏳ **not yet run.** Nothing here has executed inside Roblox. See `TESTING.md` |
+| StyLua format | ✅ |
+| selene lint | ✅ 0 errors / 0 warnings |
+| luau-lsp types (Roblox definitions) | ✅ no errors |
+| Rojo 7.7.1 build | ✅ |
+| Roblox Studio runtime of **this update** | ⏳ **not run.** Needs your test (`TESTING.md` §P1) |
 
-## 2. Implemented
-- **Architecture:** Rojo layout, 8 server services, 7 client controllers, shared config, rate-limited remotes, collision groups
-- **Data:** session-locked DataStore profiles, migrations, sanitizing, autosave, shutdown flush, Studio memory fallback
-- **World:** atrium (dome, balcony, fountain, palms, escalators, facades, plaza), east corridor, 6 shop units, fuse boxes, spawn points, lurker eyes, AssetRegistry swap-in
-- **Day:** shop claiming, stock ordering, NPC customers (R15, colored outfits, bubbles, shopping bags), register serving with tips, auto-checkout, 5 persistent upgrades
-- **Night:** state machine, cinematic transition, Shadow Crawler (procedural rig and animation), waves scaled by night and player count, AI (hunt/attack/raid/prowl, pathfinding, stuck recovery), flashlight combat with battery, fuse-box co-op objective with safe zones and stun, shared kill credit, respawn, dawn rewards, rare-find collectibles
-- **Progression:** cash, XP, levels with cash rewards, upgrades, stats, collectibles
-- **UI:** title screen, HUD (phase timer, cash, level/XP, goals, health/battery, night info), shop panel, settings (saved), shift report, toasts, damage vignette, world and screen popups, responsive scaling, touch flashlight button, gamepad Y/B shortcuts
-- **Audio:** system complete (SoundGroups, crossfades, volume settings); tracks are empty placeholders
+## What changed in this update
+See `AUDIT.md` §3 for causes. Summary:
+- **Fixed:** economy soft-lock (partial orders and an emergency delivery)
+- **Fixed:** shift goals now persist on the server and never un-tick; older saves are backfilled
+- **Fixed:** decorative shutters are always labelled "COMING SOON"
+- **Added:** objective marker, step hints, "Daily Routine" goals, $100 one-time training bonus, customer-waiting toast, faster customers
+- **Added:** separate `_Studio` DataStore so Studio tests can't touch live saves
 
-## 3. Incomplete / placeholder (by design for this slice)
-- 3D assets are procedural part-built placeholders, not authored meshes (`ASSETS.md`)
-- Music and most SFX are empty IDs (`AudioConfig.luau`)
-- Only one enemy type. No boss yet.
-- No daily/weekly missions, achievements, inventory screen or shop customization yet (Phase 3)
-- Monetization is planned and configured but disabled (Phase 5)
-- Icons are emoji placeholders
-- Customers wear plain colored R15 bodies (no hair or accessories)
+Files touched: `EconomyConfig`, `GameConfig`, `DataService`, `ProgressionService`, `ShopService`, `CustomerService`, `NightService`, `Props`, `Hud`, `ShopPanel`, `UIController`, client `init`, and the new `GuideController`.
 
-## 4. Known risks: verify these first in Studio
-| Risk | Why | Fallback if it fails |
-|---|---|---|
-| Crawler legs don't animate | Relies on client `Motor6D.Transform` on a server-owned NPC | Move to Animator with Studio-authored animations |
-| Crawler hovers or sinks | Custom R15 Humanoid with `HipHeight` | Tune `EnemyConfig.Types.ShadowCrawler.HipHeight` |
-| Customers fail to spawn | `CreateHumanoidModelFromDescription` failing on the server | Output warns `[CustomerService] could not create customer rig`; ship a rig in `assets/` |
-| Creepster font missing | Font family availability | Falls back to the default font. Change `Theme.Fonts.Title` |
-| Flashlight cone offset from the hand | Beam originates from a root-relative attachment, not the tool | Tune `BEAM_OFFSET` in CombatService |
-| Pathfinding on escalators | Invisible ramp collision | Enemies fall back to direct MoveTo; check the balcony fuse fight |
-| Frame rate on the laptop at night | Future lighting plus ~60 dynamic lights | Report FPS; we can cut corridor lights or disable shadows |
+## Confirmed working by you (previous build)
+Mall loads, main menu, spawn, movement, exploration, shop claiming, day/night cycle, monster spawning, HUD and goals, upgrade purchases.
 
-## 5. Required Studio tests
-The full checklist is in `TESTING.md` (sections A–F).
+## Still unverified in Studio (top risks first)
+| Risk | Fallback if it fails |
+|---|---|
+| Customers never appear (`CreateHumanoidModelFromDescription` failing on the server) | Output shows `[CustomerService] could not create customer rig`; then ship a rig in `assets/` |
+| Crawler legs don't animate (client `Motor6D.Transform` on a server-owned NPC) | Switch to Animator with Studio-authored animations |
+| Crawler floats or sinks | Tune `EnemyConfig…HipHeight` |
+| Flashlight damage or cone alignment | Tune `CombatService` `BEAM_OFFSET` |
+| Frame rate at night on the laptop | Cut corridor lights / shadows |
 
-## 6. Decisions waiting on you
-1. Visual sign-off on the slice, or a list of what feels off
-2. Whether you'll model the priority-A assets in Blender yourself, or want them specified for a 3D artist
-3. Approval to start Phase 3
+## Not started (by plan)
+Phase 2 core systems (inventory, missions, achievements, reputation, merchandise choice), Phase 3 visual upgrade, Phase 4 monsters and boss, Phase 5 monetization. **Waiting for your Phase 1 test results before starting Phase 2.**

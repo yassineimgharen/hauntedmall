@@ -253,6 +253,7 @@ local function startDawn()
 			end
 			reward(player, bonus * mult, EconomyConfig.XP.Survive)
 			ProgressionService.AddStat(player, "NightsSurvived", 1)
+			ProgressionService.MarkTutorial(player, "SurvivedNight")
 
 			local item = rollCollectible(s)
 			if item then

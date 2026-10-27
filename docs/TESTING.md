@@ -26,6 +26,51 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
+## §P1: Phase 1 fix verification (test this build first)
+
+Get the update with `git pull`, then rebuild with `rojo build default.project.json -o NightShift.rbxl`, or keep `rojo serve` connected. Set `FastPhases` = true.
+
+**Onboarding & markers**
+- [ ] P1-1 After pressing PLAY, a floating **🛍️ CLAIM A SHOP** marker with a distance is visible through walls, pointing at the nearest free shop's lease stand.
+- [ ] P1-2 The goals panel shows **▶ Claim a shop…** in gold with a hint underneath.
+- [ ] P1-3 The atrium storefronts with shutters all say **COMING SOON / 🔒 future update**. No real shop has a shutter.
+
+**Stock (the soft-lock fix)**
+- [ ] P1-4 Claim a shop. The marker moves to your **📦 ORDER STOCK** crates. Press E there: +10 stock for $30, products appear, and the goal ticks ✅.
+- [ ] P1-5 **Soft-lock test:** with a fresh save (or after spending cash down to about $20), order stock. You should get a *partial* order (e.g. 6 units for $18), not a refusal.
+- [ ] P1-6 **Emergency test:** spend down to $0–2 with empty shelves, then order stock. Expect "🚚 The supplier fronted you a free delivery". Ordering again right away with empty shelves and no cash should be refused (10-minute cooldown).
+
+**Customers & register**
+- [ ] P1-7 During the Day phase, a customer appears within about 25 s of stocking, walks into **your** shop, browses, and waits at the register with 💬.
+- [ ] P1-8 You get a toast "💬 A customer is waiting…" and the marker switches to **💬 SERVE CUSTOMER**.
+- [ ] P1-9 Press E at the register: you see "+$12 ★" above the till and the Serve goal ticks ✅. If nobody serves, the customer self-checks out after about 7 s.
+- [ ] P1-10 If customers **never** appear, copy any `[CustomerService]` lines from Output. That is the top risk.
+
+**Goals persistence**
+- [ ] P1-11 Finishing all four day goals shows "🎓 Training complete! +$100" exactly once, and the panel becomes **DAILY ROUTINE** with a "Night falls in m:ss" countdown.
+- [ ] P1-12 Sell out your stock: the "Order stock" goal stays ✅ (it used to un-tick).
+- [ ] P1-13 At night the marker shows **⚡ REPAIR FUSE** over the nearest broken fuse box. The goal panel hints how to use the flashlight.
+
+**Regression** (things you already confirmed)
+- [ ] P1-14 Menu, spawn, movement, claiming, day/night, monsters, HUD and upgrades still work.
+
+## §P: Testing persistence safely (separate private experience)
+
+Use a **dedicated test experience**, so test data never mixes with the experience players will join:
+
+1. In Studio: **File → Publish to Roblox As… → Create new experience** (e.g. "Night Shift TEST"). Keep it **private**; this is the default for new experiences.
+2. **Game Settings → Security → Enable Studio Access to API Services → ON**. This lets Studio read and write that experience's DataStores. What that means:
+   - Studio uses the test experience's real DataStore service, with the same request limits as live servers.
+   - In this build Studio writes to `NightShift_PlayerData_v1_Studio`, never to the live store name, so even turning this on in the production experience would not touch real saves. Keep production's setting **off** anyway.
+3. Press Play. The yellow "Studio test mode" line should **not** appear. The Output should have no `[DataService]` warning.
+4. Earn cash, buy an upgrade, order stock, finish some goals. **Stop**, then **Play** again:
+   - [ ] P-1 Cash, level, XP, upgrades, shop stock (after you re-claim a shop) and goal ticks are restored.
+   - [ ] P-2 Collectibles: survive a night, note the rare find, rejoin, and check the 🏆 count in the shop panel.
+5. **Shutdown flush:** earn some cash, then stop within 5 s (before autosave). Play again → [ ] P-3 the cash was kept (saved by `PlayerRemoving` / `BindToClose`).
+6. **Session locking** can't be tested from Studio: Studio uses the separate `_Studio` store, and a lock conflict needs two live servers. It is code-reviewed only. It goes in the Phase 6 private-beta plan (server-hopping between two live servers with the same account).
+
+Purchase records and receipt de-duplication arrive with monetization (Phase 5) and will get their own test plan using Studio test purchases (no real Robux).
+
 ## Test checklist (please report pass/fail on each)
 
 ### A. Boot & visuals

@@ -12,6 +12,7 @@ local CONTROLLER_ORDER = {
 	"EnemyVisualController",
 	"PromptController",
 	"FlashlightController",
+	"GuideController",
 	"UIController",
 }
 

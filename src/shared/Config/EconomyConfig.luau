@@ -8,7 +8,13 @@ local EconomyConfig = {
 	Restock = {
 		Units = 10, -- units bought per order
 		CostPerUnit = 3,
+		-- Safety net: a shop with empty shelves whose owner can't afford even one unit gets a
+		-- free delivery, at most once per cooldown (persisted, so rejoining doesn't reset it).
+		EmergencyUnits = 10,
+		EmergencyCooldown = 600,
 	},
+
+	TutorialBonus = 100, -- one-time cash for finishing the four day goals
 
 	BaseMaxStock = 20,
 	BaseSalePrice = 8,
@@ -20,7 +26,7 @@ local EconomyConfig = {
 		FirstCustomerDelay = 3,
 		MaxPerShop = 2,
 		MaxTotal = 10,
-		WalkSpeed = 11,
+		WalkSpeed = 13,
 	},
 
 	Night = {

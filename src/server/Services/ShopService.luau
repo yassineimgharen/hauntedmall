@@ -114,7 +114,12 @@ local function claim(shop: Shop, player: Player)
 	end
 	refreshStock(shop)
 
-	Notify.player(player, "🛍️ The shop is yours! Order stock at the crates in the back.", "success")
+	Notify.player(
+		player,
+		"🛍️ The shop is yours! Next: order stock at the 📦 crates in the back corner.",
+		"success"
+	)
+	ProgressionService.MarkTutorial(player, "Claimed")
 	Notify.effect(player, "Purchase")
 	ShopService.ShopClaimed:Fire(shop, player)
 end
@@ -158,16 +163,43 @@ function ShopService.Restock(player: Player)
 		Notify.player(player, "Your shelves are already full.", "info")
 		return
 	end
-	local units = math.min(EconomyConfig.Restock.Units, missing)
-	local cost = units * EconomyConfig.Restock.CostPerUnit
-	if not ProgressionService.TrySpend(player, cost) then
-		Notify.player(player, string.format("Stock costs $%d — sell more to afford it.", cost), "warning")
+	local restock = EconomyConfig.Restock
+	-- Buy a full order, or as many units as the player can afford (never a dead end).
+	local units = math.min(restock.Units, missing, math.floor(data.Cash / restock.CostPerUnit))
+	if units >= 1 then
+		local cost = units * restock.CostPerUnit
+		if not ProgressionService.TrySpend(player, cost) then
+			return
+		end
+		data.Stock += units
+		refreshStock(shop)
+		Notify.player(player, string.format("📦 +%d stock delivered ($%d)", units, cost), "success")
+		Notify.effect(player, "Purchase")
+		ProgressionService.MarkTutorial(player, "Stocked")
 		return
 	end
-	data.Stock += units
-	refreshStock(shop)
-	Notify.player(player, string.format("📦 +%d stock delivered ($%d)", units, cost), "success")
-	Notify.effect(player, "Purchase")
+
+	-- Can't afford a single unit. If the shelves are also empty, the supplier fronts a free
+	-- delivery so the player can never be locked out of earning (cooldown is persisted).
+	local now = os.time()
+	if data.Stock == 0 and now - (data.LastEmergencyStockAt or 0) >= restock.EmergencyCooldown then
+		data.LastEmergencyStockAt = now
+		data.Stock += math.min(restock.EmergencyUnits, missing)
+		refreshStock(shop)
+		Notify.player(
+			player,
+			"🚚 The supplier fronted you a free delivery — sell it to get back on your feet!",
+			"success"
+		)
+		Notify.effect(player, "Purchase")
+		ProgressionService.MarkTutorial(player, "Stocked")
+		return
+	end
+	Notify.player(
+		player,
+		string.format("Stock costs $%d per unit — sell what's on your shelves first.", restock.CostPerUnit),
+		"warning"
+	)
 end
 
 -- A customer bought one item. Returns the amount earned (0 if nothing to sell).
@@ -184,6 +216,9 @@ function ShopService.Sell(shop: Shop, served: boolean): number
 	ProgressionService.AddCash(owner, price + tip)
 	ProgressionService.AddXP(owner, if served then EconomyConfig.XP.Serve else EconomyConfig.XP.Sale)
 	ProgressionService.AddStat(owner, "Sales", 1)
+	if served then
+		ProgressionService.MarkTutorial(owner, "Served")
+	end
 	refreshStock(shop)
 	Notify.effect(owner, "Sale", {
 		Position = shop.Model:GetAttribute("P_Counter"),

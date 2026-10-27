@@ -30,7 +30,12 @@ local function syncAll(player: Player, data: { [string]: any })
 		collected += 1
 	end
 	player:SetAttribute("CollectiblesFound", collected)
+	for flag, done in data.Tutorial do
+		player:SetAttribute("Tut_" .. flag, done)
+	end
 end
+
+local DAY_GOALS = { "Claimed", "Stocked", "Served", "Upgraded" }
 
 function ProgressionService.AddCash(player: Player, amount: number): boolean
 	local data = DataService.Get(player)
@@ -87,6 +92,35 @@ function ProgressionService.UpgradeBonus(player: Player, id: string): number
 	return ProgressionService.GetUpgrade(player, id) * UpgradeConfig.ById[id].PerLevel
 end
 
+-- Records a tutorial milestone once (persisted). Finishing all day goals pays a one-time
+-- training bonus. Safe to call repeatedly: only the first call for a flag does anything.
+function ProgressionService.MarkTutorial(player: Player, flag: string)
+	local data = DataService.Get(player)
+	local tutorial = data and data.Tutorial
+	if not tutorial or tutorial[flag] ~= false then
+		return
+	end
+	tutorial[flag] = true
+	player:SetAttribute("Tut_" .. flag, true)
+
+	if tutorial.Completed then
+		return
+	end
+	for _, goal in DAY_GOALS do
+		if not tutorial[goal] then
+			return
+		end
+	end
+	tutorial.Completed = true
+	player:SetAttribute("Tut_Completed", true)
+	ProgressionService.AddCash(player, EconomyConfig.TutorialBonus)
+	Notify.player(
+		player,
+		string.format("🎓 Training complete! +$%d bonus. Get ready for nightfall.", EconomyConfig.TutorialBonus),
+		"levelup"
+	)
+end
+
 function ProgressionService.AddStat(player: Player, stat: string, amount: number)
 	local data = DataService.Get(player)
 	if data and data.Stats[stat] ~= nil then
@@ -130,6 +164,7 @@ local function purchaseUpgrade(player: Player, id: any)
 		"success"
 	)
 	Notify.effect(player, "Purchase")
+	ProgressionService.MarkTutorial(player, "Upgraded")
 	ProgressionService.UpgradePurchased:Fire(player, id, level + 1)
 end
 
@@ -155,7 +190,20 @@ end
 function ProgressionService.Init() end
 
 function ProgressionService.Start()
-	DataService.ProfileLoaded:Connect(syncAll)
+	DataService.ProfileLoaded:Connect(function(player, data)
+		-- Saves from before tutorial tracking existed: credit what the stats already prove.
+		local tutorial = data.Tutorial
+		for _ in data.Upgrades do
+			tutorial.Upgraded = true
+		end
+		if data.Stats.Sales > 0 then
+			tutorial.Stocked = true
+		end
+		if data.Stats.NightsSurvived > 0 then
+			tutorial.SurvivedNight = true
+		end
+		syncAll(player, data)
+	end)
 	Net.handle("PurchaseUpgrade", 4, 6, purchaseUpgrade)
 	Net.handle("SaveSettings", 1, 3, saveSettings)
 end

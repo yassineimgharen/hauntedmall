@@ -297,13 +297,14 @@ function Props.facade(
 			Color = Palette.DarkMetal,
 		})
 	end
-	Builder.label(shutter, Enum.NormalId.Back, "OPENING SOON", {
+	-- Every decorative storefront is labelled so nobody mistakes it for a claimable shop.
+	Builder.label(shutter, Enum.NormalId.Back, "COMING SOON\n🔒 future update", {
 		Color = Color3.fromRGB(230, 230, 240),
 		Font = FONT_BODY,
 		Lit = true,
 		GuiName = "Soon",
-	}).Enabled = rng:NextNumber()
-		< 0.5
+	})
+	rng:NextNumber() -- keeps the seeded prop layout identical to earlier builds
 
 	-- dark gap under a half-closed shutter, sometimes with something watching
 	Builder.decor({
