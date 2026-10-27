@@ -1,0 +1,6 @@
+# Toolchain for Windows/macOS via Rokit (user-local install, no admin rights).
+# On Ubuntu, scripts/install-tools.sh downloads the same pinned versions into .tools/.
+[tools]
+rojo = "rojo-rbx/rojo@7.7.1"
+selene = "Kampfkarren/selene@0.32.0"
+stylua = "JohnnyMorganz/StyLua@2.6.0"

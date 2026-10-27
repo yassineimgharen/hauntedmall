@@ -1,0 +1,189 @@
+-- Day/night look. Tweens Lighting and post effects between presets, switches tagged
+-- lights, and runs the dramatic dusk power-down. All local: zero network cost.
+--
+-- Tags used by the world builder:
+--   DayLight  (Light)  on during the day, off at night
+--   DayNeon   (Part)   warm neon that goes dark at night
+--   NightNeon (Part)   pastel by day, saturated + flickering at night
+--   NightLight(Light)  off by day, on at night
+
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local LightingPresets = require(ReplicatedStorage.Shared.Config.LightingPresets)
+
+local LightingController = {}
+
+local player = Players.LocalPlayer
+local rng = Random.new()
+local effects: { [string]: Instance } = {}
+local baseBrightness: { [Light]: number } = {}
+local nightLightBrightness: { [Light]: number } = {}
+local baseColor: { [BasePart]: Color3 } = {}
+local isNight = false
+local sequence = 0
+
+local function reducedEffects(): boolean
+	return player:GetAttribute("Set_ReducedEffects") == true
+end
+
+local function tweenProps(target: Instance, props: { [string]: any }, duration: number)
+	if duration <= 0 then
+		for key, value in props do
+			(target :: any)[key] = value
+		end
+		return
+	end
+	local info = TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	TweenService:Create(target, info, props):Play()
+end
+
+local function applyPreset(name: string, duration: number)
+	local preset = LightingPresets[name]
+	tweenProps(Lighting, preset.Lighting, duration)
+	for key, effect in effects do
+		tweenProps(effect, (preset :: any)[key], duration)
+	end
+end
+
+local function neonColor(part: BasePart): Color3
+	local attribute = part:GetAttribute("BaseColor")
+	if typeof(attribute) == "Color3" then
+		return attribute
+	end
+	local color = baseColor[part]
+	if not color then
+		color = part.Color
+		baseColor[part] = color
+	end
+	return color
+end
+
+local function setDayLights(on: boolean, duration: number)
+	for _, light in CollectionService:GetTagged("DayLight") do
+		local base = baseBrightness[light]
+		if base == nil then
+			base = light.Brightness
+			baseBrightness[light] = base
+		end
+		tweenProps(light, { Brightness = if on then base else 0 }, duration)
+	end
+	for _, part in CollectionService:GetTagged("DayNeon") do
+		local base = neonColor(part)
+		tweenProps(part, { Color = if on then base else base:Lerp(Color3.new(0, 0, 0), 0.85) }, duration)
+	end
+end
+
+local function setNightMode(on: boolean, duration: number)
+	for _, part in CollectionService:GetTagged("NightNeon") do
+		local base = neonColor(part)
+		tweenProps(part, { Color = if on then base else base:Lerp(Color3.new(1, 1, 1), 0.4) }, duration)
+	end
+	for _, light in CollectionService:GetTagged("NightLight") do
+		local base = nightLightBrightness[light]
+		if base == nil then
+			base = math.max(light.Brightness, 1.4)
+			nightLightBrightness[light] = base
+		end
+		tweenProps(light, { Brightness = if on then base else 0 }, duration)
+	end
+end
+
+local function powerDown(token: number, duration: number)
+	-- stutter, fail, then the night creeps in
+	if not reducedEffects() then
+		for i = 1, 7 do
+			if sequence ~= token then
+				return
+			end
+			setDayLights(i % 2 == 0, 0)
+			task.wait(rng:NextNumber(0.06, 0.22))
+		end
+	end
+	setDayLights(false, 0.4)
+	applyPreset("Night", math.max(duration - 2, 1))
+	task.wait(1.2)
+	if sequence == token then
+		setNightMode(true, 2)
+	end
+end
+
+local function onPhase(instant: boolean)
+	local phase = ReplicatedStorage:GetAttribute("Phase")
+	sequence += 1
+	local token = sequence
+	local duration = ReplicatedStorage:GetAttribute("PhaseDuration") or 8
+
+	if phase == "Dusk" or phase == "Night" then
+		isNight = true
+		if instant or phase == "Night" then
+			applyPreset("Night", if instant then 0 else 2)
+			setDayLights(false, if instant then 0 else 1)
+			setNightMode(true, if instant then 0 else 1)
+		else
+			task.spawn(powerDown, token, duration)
+		end
+	else
+		isNight = false
+		local fade = if instant then 0 elseif phase == "Dawn" then math.min(duration, 8) else 2
+		applyPreset("Day", fade)
+		setDayLights(true, fade)
+		setNightMode(false, fade)
+	end
+end
+
+-- Random neon stutter at night; skipped with Reduced Effects.
+local function flickerLoop()
+	while true do
+		task.wait(rng:NextNumber(0.15, 0.5))
+		if isNight and not reducedEffects() then
+			local neon = CollectionService:GetTagged("NightNeon")
+			if #neon > 0 then
+				local part = neon[rng:NextInteger(1, #neon)]
+				local original = part.Transparency
+				part.Transparency = 0.85
+				task.delay(rng:NextNumber(0.05, 0.15), function()
+					part.Transparency = original
+				end)
+			end
+		end
+	end
+end
+
+function LightingController.Start()
+	effects.Atmosphere = Lighting:WaitForChild("NS_Atmosphere")
+	effects.ColorCorrection = Lighting:WaitForChild("NS_ColorCorrection")
+	effects.Bloom = Lighting:WaitForChild("NS_Bloom")
+	effects.SunRays = Lighting:WaitForChild("NS_SunRays")
+	workspace:WaitForChild("Mall")
+
+	-- trim colours change when shops are claimed; re-tint on the fly
+	for _, tag in { "NightNeon", "DayNeon" } do
+		local function watch(part: Instance)
+			part:GetAttributeChangedSignal("BaseColor"):Connect(function()
+				local base = neonColor(part :: BasePart)
+				local p = part :: BasePart
+				p.Color = if isNight or tag == "DayNeon" then base else base:Lerp(Color3.new(1, 1, 1), 0.4)
+			end)
+		end
+		for _, part in CollectionService:GetTagged(tag) do
+			watch(part)
+		end
+		CollectionService:GetInstanceAddedSignal(tag):Connect(watch)
+	end
+
+	onPhase(true)
+	ReplicatedStorage:GetAttributeChangedSignal("Phase"):Connect(function()
+		onPhase(false)
+	end)
+	task.spawn(flickerLoop)
+end
+
+function LightingController.IsNight(): boolean
+	return isNight
+end
+
+return LightingController
