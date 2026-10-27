@@ -61,8 +61,32 @@ local function ellipsoid(model: Model, size: Vector3, cf: CFrame, color: Color3,
 	return p
 end
 
-function ShadowCrawler.build(): Model
-	local authored = AssetRegistry.clone("ShadowCrawler")
+-- Pale, translucent re-colour for the Phantom Shopper (same rig and animation).
+local function phantomize(model: Model)
+	local eye = Color3.fromRGB(120, 240, 255)
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+			if descendant.Color == Palette.ShadowEye then
+				descendant.Color = eye
+			else
+				descendant.Color = descendant.Color:Lerp(Color3.fromRGB(205, 215, 235), 0.85)
+				descendant.Material = Enum.Material.Glass
+				descendant.Transparency = math.max(descendant.Transparency, 0.3)
+			end
+		elseif descendant:IsA("Light") then
+			descendant.Color = eye
+		elseif descendant:IsA("Trail") then
+			descendant.Color = ColorSequence.new(eye)
+		elseif descendant:IsA("ParticleEmitter") then
+			descendant.Color = ColorSequence.new(Color3.fromRGB(220, 235, 255), Color3.fromRGB(120, 140, 180))
+		end
+	end
+	model.Name = "PhantomShopper"
+end
+
+-- variant "Phantom" builds the Phantom Shopper's revealed form.
+function ShadowCrawler.build(variant: string?): Model
+	local authored = AssetRegistry.clone(if variant == "Phantom" then "PhantomShopper" else "ShadowCrawler")
 	if authored then
 		return authored
 	end
@@ -223,6 +247,9 @@ function ShadowCrawler.build(): Model
 		humanoid:SetStateEnabled(state, false)
 	end
 
+	if variant == "Phantom" then
+		phantomize(model)
+	end
 	return model
 end
 

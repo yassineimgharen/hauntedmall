@@ -396,9 +396,12 @@ function NightService.Start()
 		table.insert(spawnPoints, point :: BasePart)
 	end
 
-	EnemyService.Killed:Connect(function(_enemy, contributors)
+	EnemyService.Killed:Connect(function(enemy, contributors)
 		local cash = EconomyConfig.Night.PerKill * multiplier()
 		MissionEvents.record(nil, "EnemyDefeated")
+		if enemy.Type == "PhantomShopper" then
+			MissionEvents.record(nil, "PhantomDefeated")
+		end
 		for player in contributors do
 			if player.Parent then
 				statsFor(player).Kills += 1

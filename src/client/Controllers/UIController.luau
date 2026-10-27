@@ -13,6 +13,7 @@ local LocalEvents = require(script.Parent.Parent.LocalEvents)
 local AudioController = require(script.Parent.AudioController)
 local Create = require(script.Parent.Parent.UI.Create)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local CameraFeed = require(script.Parent.Parent.UI.Screens.CameraFeed)
 local CampaignPanel = require(script.Parent.Parent.UI.Screens.CampaignPanel)
 local DevStorePanel = require(script.Parent.Parent.UI.Screens.DevStorePanel)
 local Hud = require(script.Parent.Parent.UI.Screens.Hud)
@@ -103,6 +104,7 @@ function UIController.Start()
 	windows.Settings = SettingsPanel.new(root, close)
 	windows.Results = ResultsPanel.new(root, close)
 	windows.Campaign = CampaignPanel.new(root, close)
+	local cameraFeed = CameraFeed.new(root)
 	DevStorePanel.mount(root) -- Studio test mode only; no-op in live servers
 
 	MainMenu.new(root, function()
@@ -191,6 +193,14 @@ function UIController.Start()
 			AudioController.Play("MonsterHit")
 		elseif kind == "Purchase" then
 			AudioController.Play("Purchase")
+		elseif kind == "OpenCameras" and type(payload.Cameras) == "table" then
+			setWindow(nil)
+			cameraFeed:Open(payload.Cameras)
+		elseif kind == "PhantomUnmasked" then
+			if typeof(payload.Position) == "Vector3" then
+				hud:WorldPopup(payload.Position, "👻 UNMASKED!", Theme.Colors.Cyan)
+			end
+			AudioController.Play("MonsterSpawn")
 		elseif kind == "PowerRestored" then
 			hud:ShowBanner("POWER RESTORED", "The shadows are stunned — strike now!", Theme.Colors.Cyan)
 			AudioController.Play("PowerUp")

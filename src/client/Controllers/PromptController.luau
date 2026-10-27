@@ -44,10 +44,13 @@ local carryPrompts: { [ProximityPrompt]: boolean } = {}
 
 local function refreshCarry()
 	local carrying = player:GetAttribute("Carrying")
+	local myShop = player:GetAttribute("ShopId")
 	for prompt in carryPrompts do
+		local shop = prompt:GetAttribute("RequiresShop") -- only the owner builds at their shop
 		prompt.Enabled = carrying ~= nil
 			and prompt:GetAttribute("RequiresCarry") == carrying
 			and not prompt:GetAttribute("Done")
+			and (shop == nil or shop == myShop)
 	end
 end
 
@@ -68,6 +71,7 @@ function PromptController.Start()
 		carryPrompts[prompt :: ProximityPrompt] = nil
 	end)
 	player:GetAttributeChangedSignal("Carrying"):Connect(refreshCarry)
+	player:GetAttributeChangedSignal("ShopId"):Connect(refreshCarry)
 
 	for _, prompt in CollectionService:GetTagged("InfoPrompt") do
 		bindInfo(prompt)

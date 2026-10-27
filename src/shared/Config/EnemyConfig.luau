@@ -37,6 +37,23 @@ local EnemyConfig = {
 			PerNight = { WalkSpeed = 0.6, Damage = 1.5, MaxHealth = 6, AggroRange = 5 },
 			Caps = { WalkSpeed = 15.5, Damage = 18, MaxHealth = 90, AggroRange = 70 },
 		} :: EnemyType,
+		-- A disguised shopper, unmasked by the flashlight (Level 3). Fragile but quick to
+		-- strike: faster wind-up, short cooldown, wide sight. Still slower than players.
+		PhantomShopper = {
+			DisplayName = "Phantom Shopper",
+			MaxHealth = 30,
+			WalkSpeed = 13.5,
+			Damage = 9,
+			AttackRange = 5,
+			AttackCooldown = 1.5,
+			AttackWindup = 0.5,
+			AggroRange = 60,
+			ShopDrain = 1,
+			ShopDrainInterval = 2,
+			HipHeight = 1.4,
+			PerNight = { WalkSpeed = 0.3, Damage = 1, MaxHealth = 4, AggroRange = 0 },
+			Caps = { WalkSpeed = 15, Damage = 15, MaxHealth = 60, AggroRange = 60 },
+		} :: EnemyType,
 	},
 
 	Combat = {

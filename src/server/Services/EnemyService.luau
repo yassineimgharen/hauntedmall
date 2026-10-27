@@ -47,6 +47,16 @@ export type Enemy = {
 	LastProgressAt: number,
 	Patrols: boolean, -- walks a patrol route instead of hunting shops when no one is in sight
 	PatrolTarget: Vector3?,
+	Goal: Goal?, -- level objective this enemy attacks when no player is in sight
+	LureUntil: number, -- os.clock(): drawn to LurePosition (alarms) until then
+	LurePosition: Vector3?,
+}
+
+-- Something an enemy marches on and hits (e.g. a security terminal).
+export type Goal = {
+	Position: Vector3,
+	Alive: () -> boolean,
+	Hit: (enemy: any) -> (),
 }
 
 -- Night-specific behaviour, set by NightService from the level's rules.
@@ -60,7 +70,12 @@ local EnemyService = {}
 EnemyService.Killed = Signal.new() -- (enemy, contributors: {[Player]: number})
 
 local BUILDERS = {
-	ShadowCrawler = ShadowCrawler.build,
+	ShadowCrawler = function()
+		return ShadowCrawler.build()
+	end,
+	PhantomShopper = function()
+		return ShadowCrawler.build("Phantom")
+	end,
 }
 
 local enemies: { Enemy } = {}
@@ -249,6 +264,22 @@ local function think(enemy: Enemy, now: number)
 		humanoid.Jump = true
 	end
 
+	-- an alarm pulls it in; it only bites someone standing right next to it
+	if now < enemy.LureUntil and enemy.LurePosition then
+		local nearby, nearbyRoot, nearbyDistance = nearestPlayer(position, config.AttackRange, false)
+		if nearby and nearbyRoot and nearbyDistance <= config.AttackRange then
+			humanoid:MoveTo(position)
+			face(enemy, nearbyRoot.Position)
+			attackPlayer(enemy, nearby, now)
+		elseif flatDistance(position, enemy.LurePosition) > 5 then
+			navigate(enemy, enemy.LurePosition)
+		else
+			enemy.LastProgressAt = now
+			humanoid:MoveTo(position)
+		end
+		return
+	end
+
 	local player, root, distance = nearestPlayer(position, config.AggroRange * behavior.SightScale, true)
 	if player and root then
 		enemy.LastProgressAt = if distance <= config.AttackRange then now else enemy.LastProgressAt
@@ -258,6 +289,27 @@ local function think(enemy: Enemy, now: number)
 			attackPlayer(enemy, player, now)
 		else
 			navigate(enemy, root.Position)
+		end
+		return
+	end
+
+	local goal = enemy.Goal
+	if goal and not goal.Alive() then
+		enemy.Goal = nil
+		goal = nil
+	end
+	if goal then
+		if flatDistance(position, goal.Position) < 6 then
+			enemy.LastProgressAt = now
+			humanoid:MoveTo(position)
+			face(enemy, goal.Position)
+			if now - enemy.LastDrain >= config.ShopDrainInterval then
+				enemy.LastDrain = now
+				enemy.Model:SetAttribute("AttackAt", serverNow())
+				goal.Hit(enemy)
+			end
+		else
+			navigate(enemy, goal.Position)
 		end
 		return
 	end
@@ -370,6 +422,9 @@ function EnemyService.Spawn(typeId: string, position: Vector3, night: number?): 
 		LastProgressAt = now,
 		Patrols = behavior.PatrolPoints ~= nil and rng:NextNumber() < behavior.PatrolShare,
 		PatrolTarget = nil,
+		Goal = nil,
+		LureUntil = 0,
+		LurePosition = nil,
 	}
 	table.insert(enemies, enemy)
 	workspace:SetAttribute("EnemiesAlive", #enemies)
@@ -405,6 +460,20 @@ function EnemyService.ClearAll()
 	for _, enemy in table.clone(enemies) do
 		remove(enemy)
 	end
+end
+
+-- Draws every enemy within `radius` of `center` there for `seconds`. Returns how many.
+function EnemyService.Lure(center: Vector3, radius: number, seconds: number): number
+	local count = 0
+	for _, enemy in enemies do
+		if not enemy.Dead and (enemy.Root.Position - center).Magnitude <= radius then
+			enemy.LureUntil = os.clock() + seconds
+			enemy.LurePosition = center
+			enemy.PathAt = 0
+			count += 1
+		end
+	end
+	return count
 end
 
 -- nil restores the default (hunt players, raid shops, full sight).

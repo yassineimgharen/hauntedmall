@@ -35,26 +35,33 @@ local function nearest(parts: { BasePart }, from: Vector3): BasePart?
 	return best
 end
 
-local function openTagged(tag: string): { BasePart }
-	local parts = {}
+-- Unfinished parts with `tag`. Own = "Shop": only ones at your shop. Prefer = attribute:
+-- if any part has it (e.g. the cage the clues pointed to), only those.
+local function openTagged(tag: string, own: string?, prefer: string?): { BasePart }
+	local parts, preferred = {}, {}
 	for _, instance in CollectionService:GetTagged(tag) do
 		if instance:IsA("BasePart") and not instance:GetAttribute("Done") then
-			table.insert(parts, instance)
+			if own ~= "Shop" or instance:GetAttribute("ShopId") == player:GetAttribute("ShopId") then
+				table.insert(parts, instance)
+				if prefer and instance:GetAttribute(prefer) then
+					table.insert(preferred, instance)
+				end
+			end
 		end
 	end
-	return parts
+	return if #preferred > 0 then preferred else parts
 end
 
 local function missionTarget(from: Vector3): (BasePart?, string?, Color3?)
 	local row = MissionClient.focusRow()
 	local marker = row and row.Marker
-	if not marker then
-		return nil
+	if not marker or (marker.Own == "Shop" and player:GetAttribute("ShopId") == nil) then
+		return nil -- e.g. "barricade your shop" without a shop: the claim marker takes over
 	end
 	if marker.Carry and player:GetAttribute("Carrying") ~= marker.Carry then
 		return nearest(openTagged(marker.Pickup), from), marker.PickupLabel, Theme.Colors.Gold
 	end
-	return nearest(openTagged(marker.Tag), from), marker.Label, Theme.Colors.Cyan
+	return nearest(openTagged(marker.Tag, marker.Own, marker.Prefer), from), marker.Label, Theme.Colors.Cyan
 end
 
 -- Returns the part to point at and the label, or nil when nothing needs doing.

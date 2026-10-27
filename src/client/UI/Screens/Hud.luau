@@ -516,7 +516,10 @@ function Hud:_missionGoals(): (boolean, { { Text: string, State: string } }, str
 	local nextFound = false
 	for _, row in snapshot.Rows do
 		local text = row.Text
-		if row.Target > 1 then
+		local avoid = row.Kind == "Avoid"
+		if avoid and row.Target > 0 then
+			text ..= string.format(" (%d/%d max)", row.Progress, row.Target)
+		elseif not avoid and row.Target > 1 then
 			text ..= string.format(" (%d/%d)", row.Progress, row.Target)
 		end
 		if row.Team then
@@ -529,6 +532,10 @@ function Hud:_missionGoals(): (boolean, { { Text: string, State: string } }, str
 			state = "done"
 		elseif row.Optional then
 			state = "optional"
+		elseif avoid then
+			state = "guard" -- holds unless it fails; nothing to "do"
+		elseif row.Kind == "Survive" then
+			state = "info"
 		elseif not nextFound and not snapshot.Final then
 			nextFound = true
 			state = "next"
@@ -624,6 +631,7 @@ function Hud:_updateGoals()
 		info = { "• ", C.Text },
 		optional = { "★ ", C.Cyan },
 		failed = { "❌ ", C.Red },
+		guard = { "🛡 ", C.Gold },
 	}
 	for i, label in self.GoalRows do
 		local row = rows[i]

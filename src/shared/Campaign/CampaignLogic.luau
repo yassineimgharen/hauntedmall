@@ -13,8 +13,9 @@ export type Objective = {
 	Id: string,
 	Text: string,
 	Kind: ("Count" | "Avoid" | "Survive")?, -- default Count
-	Event: string?, -- Count: progresses on this event; Avoid: fails on it
+	Event: string?, -- Count: progresses on this event; Avoid: counts against you
 	Target: number?, -- Count only (default 1)
+	Allow: number?, -- Avoid only: how many events are tolerated before it fails (default 0)
 	Scope: ("Player" | "Team")?, -- default Player
 	Optional: boolean?,
 	Hint: string?,
@@ -28,6 +29,7 @@ export type Row = {
 	Target: number,
 	Done: boolean,
 	Failed: boolean,
+	Kind: string,
 	Optional: boolean,
 	Team: boolean,
 	Hint: string?,
@@ -38,21 +40,27 @@ export type Tracker = {
 	Objectives: { Objective },
 	Team: { [string]: number },
 	Players: { [any]: { [string]: number } },
-	Failed: { [any]: { [string]: boolean } },
 }
 
 -- ── objective tracking ──────────────────────────────────────────────────────
 
 function CampaignLogic.newTracker(objectives: { Objective }): Tracker
-	return { Objectives = objectives, Team = {}, Players = {}, Failed = {} }
+	return { Objectives = objectives, Team = {}, Players = {} }
 end
 
 local function kind(objective: Objective): string
 	return objective.Kind or "Count"
 end
 
+-- Count: the goal. Avoid: the tolerance (events allowed). Survive: 1.
 local function target(objective: Objective): number
-	return if kind(objective) == "Count" then objective.Target or 1 else 1
+	local k = kind(objective)
+	if k == "Count" then
+		return objective.Target or 1
+	elseif k == "Avoid" then
+		return objective.Allow or 0
+	end
+	return 1
 end
 
 local function playerCounts(tracker: Tracker, key: any): { [string]: number }
@@ -72,9 +80,9 @@ function CampaignLogic.value(tracker: Tracker, key: any, objective: Objective): 
 	return if counts then counts[objective.Id] or 0 else 0
 end
 
+-- Avoid objectives fail once their event happened more often than Allow.
 function CampaignLogic.isFailed(tracker: Tracker, key: any, objective: Objective): boolean
-	local failed = tracker.Failed[key]
-	return failed ~= nil and failed[objective.Id] == true
+	return kind(objective) == "Avoid" and CampaignLogic.value(tracker, key, objective) > target(objective)
 end
 
 -- final = the stage has ended (Survive objectives only complete then).
@@ -99,10 +107,13 @@ function CampaignLogic.record(tracker: Tracker, key: any, event: string, amount:
 		end
 		local k = kind(objective)
 		if k == "Avoid" then
-			if key ~= nil and not CampaignLogic.isFailed(tracker, key, objective) then
-				local failed = tracker.Failed[key] or {}
-				tracker.Failed[key] = failed
-				failed[objective.Id] = true
+			-- keeps counting past the limit so the HUD can show how far over it went
+			if objective.Scope == "Team" then
+				tracker.Team[objective.Id] = (tracker.Team[objective.Id] or 0) + step
+				changed = true
+			elseif key ~= nil then
+				local counts = playerCounts(tracker, key)
+				counts[objective.Id] = (counts[objective.Id] or 0) + step
 				changed = true
 			end
 		elseif k == "Count" then
@@ -165,7 +176,7 @@ function CampaignLogic.rows(tracker: Tracker, key: any, final: boolean?): { Row 
 	local rows = {}
 	for _, objective in tracker.Objectives do
 		local k = kind(objective)
-		local failed = k == "Avoid" and CampaignLogic.isFailed(tracker, key, objective)
+		local failed = CampaignLogic.isFailed(tracker, key, objective)
 		table.insert(rows, {
 			Id = objective.Id,
 			Text = objective.Text,
@@ -173,6 +184,7 @@ function CampaignLogic.rows(tracker: Tracker, key: any, final: boolean?): { Row 
 			Target = target(objective),
 			Done = CampaignLogic.isDone(tracker, key, objective, final),
 			Failed = failed,
+			Kind = k,
 			Optional = objective.Optional == true,
 			Team = objective.Scope == "Team",
 			Hint = objective.Hint,

@@ -2,7 +2,16 @@
 
 _Last updated: 2026-10-27._
 
-## Current: Campaign foundation + Levels 1–2
+## Current: Campaign Levels 3–4
+Static checks ✅ · unit tests 34/34 ✅ (17 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C2; Levels 1–2 in §C are also still untested).
+
+**Added:** `Levels/MissingDelivery` (clues, cages, crates, van), `Levels/Impostors` (real vs Phantom shoppers), `Levels/SecuritySystem` (cameras, terminals, alarms, barricades, strike groups), `Levels/Carry` (shared carrying), `CameraFeed` UI, Phantom Shopper enemy.
+**Changed:** `CampaignConfig` (L03, L04, events), `CampaignLogic` (team "lose at most N" objectives), `EnemyService` (goals, lures, phantom builder), `ShadowCrawler` (phantom variant), `CombatService` (flashlight reveals registered targets), `CustomerService` (shared NPC factory), `ShopService` (stock gifts, raid shields), `NightService`/`MissionService` (phantom kills, failure toasts), `PowerGrid` (uses `Carry`), HUD, prompts, guide marker, `UIController`.
+**Next (after your test):** Levels 5–7 (Restricted Access / The Stalker, Final Preparations / Rescue Mission, The Warning / The Shadow Queen boss).
+
+---
+
+## Previous: Campaign foundation + Levels 1–2
 Static checks ✅ · unit tests 31/31 ✅ (14 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C).
 
 **Added:** `Campaign/CampaignConfig` (42 levels, 6 chapters), `Campaign/CampaignLogic`, `MissionService`, `Levels/PowerGrid`, `Util/MissionEvents`, `MissionClient`, `CampaignPanel`, Blackout lighting preset, `tests/Campaign.spec.luau`, `docs/CAMPAIGN.md`.

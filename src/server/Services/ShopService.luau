@@ -19,6 +19,9 @@ export type Shop = {
 	Owner: Player?,
 	Slots: { Model },
 	LastAttackNotice: number,
+	-- Optional absorber for raids (level mechanics, e.g. barricades). Returns true if it
+	-- took the hit instead of the stock.
+	Shield: ((amount: number) -> boolean)?,
 }
 
 local ShopService = {}
@@ -238,6 +241,9 @@ end
 
 -- Monsters stealing merchandise at night.
 function ShopService.Drain(shop: Shop, amount: number)
+	if shop.Shield and shop.Shield(amount) then
+		return
+	end
 	local owner = shop.Owner
 	local data = owner and DataService.Get(owner)
 	if not owner or not data or data.Stock <= 0 then
@@ -249,6 +255,24 @@ function ShopService.Drain(shop: Shop, amount: number)
 		shop.LastAttackNotice = os.clock()
 		Notify.player(owner, "⚠️ Something is raiding your shop!", "danger")
 	end
+end
+
+-- Free stock for the player's shop (level rewards), capped at shelf capacity.
+-- Returns the units actually added (0 without a shop).
+function ShopService.AddStock(player: Player, units: number): number
+	local shop = ShopService.GetShopOf(player)
+	local data = DataService.Get(player)
+	if not shop or not data then
+		return 0
+	end
+	local added = math.max(0, math.min(units, ShopService.GetMaxStock(player) - data.Stock))
+	data.Stock += added
+	refreshStock(shop)
+	return added
+end
+
+function ShopService.SetShield(shop: Shop, shield: ((amount: number) -> boolean)?)
+	shop.Shield = shield
 end
 
 function ShopService.GetStock(shop: Shop): number

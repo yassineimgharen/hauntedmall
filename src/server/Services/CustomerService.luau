@@ -321,12 +321,16 @@ local function run(customer: Customer)
 	end
 end
 
-local function spawnCustomer(shop: ShopService.Shop)
+export type Npc = { Model: Model, Humanoid: Humanoid, Root: BasePart, Bubble: TextLabel }
+
+-- A painted, animated shopper rig placed at `cf` under `parent` (also used by level
+-- mechanics for night shoppers). Nil until the rig templates have loaded.
+function CustomerService.CreateNpc(name: string, cf: CFrame, parent: Instance): Npc?
 	if #templates == 0 then
-		return
+		return nil
 	end
 	local model = pick(templates):Clone()
-	model.Name = "Customer"
+	model.Name = name
 	paint(model)
 	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
@@ -336,20 +340,10 @@ local function spawnCustomer(shop: ShopService.Shop)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
 	CollisionGroups.assign(model, CollisionGroups.NPCs)
+	local bubble = makeBubble(model)
 
-	local customer: Customer = {
-		Model = model,
-		Humanoid = humanoid,
-		Root = root,
-		Shop = shop,
-		State = "Walking",
-		Abort = false,
-		Bubble = makeBubble(model),
-	}
-	table.insert(customers, customer)
-
-	model:PivotTo(CFrame.new(Layout.CustomerSpawn + Vector3.new(rng:NextNumber(-6, 6), 0, 0)))
-	model.Parent = folder
+	model:PivotTo(cf)
+	model.Parent = parent
 	root:SetNetworkOwner(nil)
 
 	local animator = humanoid:FindFirstChildOfClass("Animator")
@@ -373,6 +367,28 @@ local function spawnCustomer(shop: ShopService.Shop)
 			tracks.Walk:Stop(0.2)
 		end
 	end)
+	return { Model = model, Humanoid = humanoid, Root = root, Bubble = bubble }
+end
+
+local function spawnCustomer(shop: ShopService.Shop)
+	local npc = CustomerService.CreateNpc(
+		"Customer",
+		CFrame.new(Layout.CustomerSpawn + Vector3.new(rng:NextNumber(-6, 6), 0, 0)),
+		folder
+	)
+	if not npc then
+		return
+	end
+	local customer: Customer = {
+		Model = npc.Model,
+		Humanoid = npc.Humanoid,
+		Root = npc.Root,
+		Shop = shop,
+		State = "Walking",
+		Abort = false,
+		Bubble = npc.Bubble,
+	}
+	table.insert(customers, customer)
 
 	task.spawn(function()
 		local ok, err = pcall(run, customer)

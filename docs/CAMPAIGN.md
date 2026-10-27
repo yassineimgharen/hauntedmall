@@ -1,6 +1,6 @@
 # Campaign: Unique Day/Night Levels
 
-_2026-10-27. Implemented: campaign framework + **Level 1** and **Level 2**. Levels 3–42 are planned (shown as "coming soon" in game). Nothing here has been run in Studio yet; see `TESTING.md` §C._
+_2026-10-27. Implemented: campaign framework + **Levels 1–4**. Levels 5–42 are planned (shown as "coming soon" in game). Nothing here has been run in Studio yet; see `TESTING.md` §C (Levels 1–2) and §C2 (Levels 3–4)._
 
 ## 1. Audit (before this change)
 | Area | What existed |
@@ -26,7 +26,12 @@ Game systems ──MissionEvents.record(player, "Served")──▶ MissionServic
 | `src/shared/Campaign/CampaignConfig.luau` | All 42 levels: names, teasers; for implemented ones objectives, rules, durations, rewards |
 | `src/shared/Campaign/CampaignLogic.luau` | Pure rules: objective tracking, unlocks, vote pick, outcomes, rewards |
 | `src/server/Services/MissionService.luau` | Runs the active level; credit, rewards, persistence, votes, Studio helpers |
-| `src/server/Levels/PowerGrid.luau` | Level 2 mechanic (depot, carried items, panels, lamps, lamp light pools, patrol points) |
+| `src/server/Levels/PowerGrid.luau` | Level 2 mechanic (depot, panels, lamps, lamp light pools, patrol points) |
+| `src/server/Levels/MissingDelivery.luau` | Level 3 day: clue trail, storage cages, stolen crates, delivery van |
+| `src/server/Levels/Impostors.luau` | Level 3 night: real vs Phantom shoppers, stalking, unmasking by flashlight |
+| `src/server/Levels/SecuritySystem.luau` | Level 4: cameras, terminals, alarms, barricades; night strike groups and lures |
+| `src/server/Levels/Carry.luau` | Shared "carry one item" helper (fuses, lamps, crates, planks) |
+| `src/client/UI/Screens/CameraFeed.luau` | Security camera viewer (Level 4 nights) |
 | `src/server/Util/MissionEvents.luau` | Event bus from game systems to missions |
 | `src/client/MissionClient.luau`, `UI/Screens/CampaignPanel.luau` | Objective snapshot store; campaign map (key **M**) |
 | `tests/Campaign.spec.luau` | 14 Lune tests (content validation + rules) |
@@ -36,7 +41,7 @@ Game systems ──MissionEvents.record(player, "Served")──▶ MissionServic
 |---|---|---|
 | `Count` (Player or Team scope) | its event reaches `Target` | "Repair the electrical panels (4)" (Team) |
 | `Survive` | the stage ends | "Survive until dawn" |
-| `Avoid` | the stage ends without its event | "Don't get knocked down" (optional) |
+| `Avoid` (Player or Team, with `Allow`) | the stage ends with the event happening at most `Allow` times | "Shoppers lost (max 2)" (Team), "Don't get knocked down" |
 
 Every objective is driven by a real game event (`CampaignConfig.Events`); there are no text-only objectives. A new mechanic means a new level module plus events, with no changes to the core.
 
@@ -55,6 +60,17 @@ Every objective is driven by a real game event (`CampaignConfig.Events`); there 
 | Reward (first clear) | $150 · 200 XP | $250 · 300 XP |
 
 The unit test "day 2 / night 2 share no required objective events with day 1 / night 1" enforces that the required objectives never repeat.
+
+## 3b. Levels 3 and 4
+| | Level 3 | Level 4 |
+|---|---|---|
+| **Day** | *The Missing Delivery*: **investigation**. A 3-clue trail (only the current clue exists) runs from the empty van in the plaza, through the atrium, to the upper level. The last clue names one of **4 storage cages** (random each time). Then **carry the 4 stolen crates** back to the van; each crate also gives the carrier's shop +6 stock | *Security Upgrade*: **repair 4 cameras** (one on the upper level), **activate 3 terminals**, **arm 2 alarms**, and **barricade your own shop door** with planks from the hardware depot (personal) |
+| **Night** | *Impostors*: 9 identical shoppers, **5 real, 4 Phantoms**. Phantoms blend in, then **stalk** a real shopper (who panics: "😰 Someone's following me!"); they **glitch** and **stare** at you. 1.5 s of beam **unmasks** one into a pale **Phantom Shopper** enemy; burn it. Lighting a real shopper for 0.8 s is a false accusation | *Mall Under Attack*: every 30 s a **strike group** marches on one **terminal**; a 🚨 alert names it. Terminals have health bars. **View Cameras** at a terminal shows the repaired cameras. **Armed alarms lure** every crawler within 90 studs for 8 s (25 s cooldown). **Barricades absorb raids** before stock is lost |
+| Day → night link | the cleared day unlocks the level; recovered stock helps your shop | everything you set up is what you have: no cameras = no feeds, unarmed alarms can't sound, no barricade = raids hit stock |
+| Failure | more than 2 real shoppers taken, or fewer than 4 Phantoms destroyed | more than 1 terminal destroyed |
+| Optional | search all cages; carry 2 crates; lose no shoppers; never light a real shopper | barricade 3 shops; lose no terminals; repel 4 attacks; use an alarm; check the cameras |
+| New enemy | **Phantom Shopper**: pale, translucent, cyan eyes; 30 HP, faster wind-up (0.5 s) and short cooldown, still slower than players | none (crawlers get a new behaviour: marching on objectives, being lured) |
+| Reward | $350 · 400 XP | $450 · 500 XP |
 
 ## 4. Completion, failure, retry
 - **Day** (checked at dusk): if your required day objectives are done, `DayCleared[level]` is saved. This is permanent, so a failed night never forces you to redo the day.
@@ -103,8 +119,10 @@ Chapter 1 levels 3–7 follow your brief exactly. Each later level's mechanic is
 Full per-level names and teasers: `CampaignConfig.luau`.
 
 ## 8. Limitations (honest)
-- **Levels 3–42** are configuration and planning only. Completing Level 2 shows "Level 3 coming in a future update", and the server then defaults to Free Shift.
+- **Levels 5–42** are configuration and planning only. Completing Level 4 shows "Level 5 coming in a future update", and the server then defaults to Free Shift.
 - **Chapter rewards, achievements and equipment unlocks** aren't built yet; level rewards are cash and XP. They're planned with Level 7 (first boss) and the progression pass.
 - Day/night **music** for blackout and level stingers are still placeholders (`AudioConfig`).
 - **Blackout zones** are by position: x ≥ 70 is the East Wing, y ≥ 18 is the upper level, everything else the atrium. Lights in unusual places may belong to the "wrong" zone.
-- Day 2 panel, lamp and depot positions were placed from the layout math, not in Studio. A prop clipping a wall or a planter is possible; report the spot.
+- Positions for Levels 2–4 props (panels, lamp rings, van, clues, cages, cameras, terminals, alarms, barricades) come from layout math, not Studio. A prop clipping a wall or planter is possible; report the spot.
+- Night shoppers use the default R15 walk animation and Roblox pathfinding; one may occasionally get stuck on a bench.
+- The camera viewer is client-side: it shows what's really there, but players in other places don't see who is watching.

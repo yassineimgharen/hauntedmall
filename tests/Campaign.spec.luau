@@ -74,23 +74,47 @@ test("implemented levels are a prefix and fully specified", function()
 	end
 end)
 
-test("day 2 / night 2 share no required objective events with day 1 / night 1", function()
-	local function events(stage)
-		local set = {}
-		for _, objective in stage.Objectives do
-			if not objective.Optional and objective.Event then
-				set[objective.Event] = true
+test("no implemented level repeats a required objective event from an earlier level", function()
+	local seen = {}
+	for _, level in CampaignConfig.Levels do
+		if not level.Implemented then
+			break
+		end
+		local mine = {}
+		for _, stage in { level.Day, level.Night } do
+			for _, objective in stage.Objectives do
+				if not objective.Optional and objective.Event then
+					assert(
+						not seen[objective.Event],
+						level.Id
+							.. " repeats required event "
+							.. objective.Event
+							.. " from "
+							.. tostring(seen[objective.Event])
+					)
+					mine[objective.Event] = level.Id
+				end
 			end
 		end
-		return set
-	end
-	for _, pair in { { L01.Day, L02.Day }, { L01.Night, L02.Night } } do
-		local first = events(pair[1])
-		for event in events(pair[2]) do
-			assert(not first[event], "level 2 repeats required event " .. event)
+		for event, id in mine do
+			seen[event] = id
 		end
 	end
 	assert(L02.Night.Rules.Blackout and not L01.Night.Rules.Blackout, "only night 2 is a blackout")
+end)
+
+test("avoid objectives declare a non-negative tolerance", function()
+	for _, level in CampaignConfig.Levels do
+		if level.Implemented then
+			for _, stage in { level.Day, level.Night } do
+				for _, objective in stage.Objectives do
+					if objective.Kind == "Avoid" then
+						assert((objective.Allow or 0) >= 0, level.Id .. "/" .. objective.Id)
+					end
+				end
+			end
+		end
+	end
 end)
 
 print("Objective tracking")
@@ -143,6 +167,30 @@ test("night 2 fails without the breakers", function()
 	eq(Logic.requiredComplete(t, 1, true), true, "3/3 by anyone")
 end)
 
+test("team avoid fails only past its tolerance", function()
+	local L03 = CampaignConfig.ById.L03
+	local t = Logic.newTracker(L03.Night.Objectives)
+	Logic.record(t, nil, "PhantomDefeated", 4)
+	Logic.record(t, nil, "ShopperTaken", 2)
+	eq(Logic.requiredComplete(t, 1, true), true, "2 lost is allowed")
+	eq(#Logic.optionalDone(t, 1), 1, "saveall failed, noaccuse kept")
+	Logic.record(t, nil, "ShopperTaken")
+	eq(Logic.requiredComplete(t, 1, true), false, "3 lost fails")
+	local row = Logic.rows(t, 1, false)[2]
+	eq(row.Failed, true, "row shows failure")
+	eq(row.Progress, 3, "lost count")
+	eq(row.Target, 2, "tolerance")
+end)
+
+test("personal avoid is per player", function()
+	local L03 = CampaignConfig.ById.L03
+	local t = Logic.newTracker(L03.Night.Objectives)
+	Logic.record(t, 1, "FalseAccusation")
+	local noaccuse = L03.Night.Objectives[5]
+	eq(Logic.isFailed(t, 1, noaccuse), true, "player 1")
+	eq(Logic.isFailed(t, 2, noaccuse), false, "player 2")
+end)
+
 test("unrelated events change nothing", function()
 	local t = Logic.newTracker(L02.Day.Objectives)
 	eq(Logic.record(t, 1, "Kill"), false, "no change")
@@ -161,11 +209,12 @@ test("next level and unlocks follow completion order", function()
 	local levels = CampaignConfig.Levels
 	eq(Logic.nextLevel(levels, {}).Id, "L01", "fresh player")
 	eq(Logic.nextLevel(levels, { L01 = 1 }).Id, "L02", "after L01")
-	eq(Logic.nextLevel(levels, { L01 = 1, L02 = 1 }), nil, "all available done")
+	eq(Logic.nextLevel(levels, { L01 = 1, L02 = 1 }).Id, "L03", "after L02")
+	eq(Logic.nextLevel(levels, { L01 = 1, L02 = 1, L03 = 1, L04 = 1 }), nil, "all available done")
 	eq(Logic.isUnlocked(levels, {}, "L02"), false, "L02 locked")
 	eq(Logic.isUnlocked(levels, { L01 = 1 }, "L02"), true, "L02 unlocked")
 	eq(Logic.isUnlocked(levels, { L01 = 1 }, "L01"), true, "replay allowed")
-	eq(Logic.isUnlocked(levels, { L01 = 1, L02 = 1 }, "L03"), false, "planned level never unlocks")
+	eq(Logic.isUnlocked(levels, { L01 = 1, L02 = 1, L03 = 1, L04 = 1 }, "L05"), false, "planned level never unlocks")
 end)
 
 test("vote picks the plurality; ties go to the earliest level; Free Shift loses ties", function()

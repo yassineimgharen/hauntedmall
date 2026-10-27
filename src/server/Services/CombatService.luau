@@ -35,6 +35,8 @@ local BEAM_OFFSET = Vector3.new(1.1, 1.0, -1.6)
 local BEAM_ON_BRIGHTNESS = 6
 
 local states: { [Player]: BeamState } = {}
+-- Non-enemy things the beam can reveal (level mechanics, e.g. disguised Phantom Shoppers).
+local lightTargets: { [Model]: (player: Player, dt: number) -> () } = {}
 local rayParams = CollisionGroups.worldRaycastParams()
 local cosCone = math.cos(math.rad(FL.ConeHalfAngle))
 local cosClose = math.cos(math.rad(50))
@@ -204,6 +206,40 @@ local function setBeam(player: Player, on: boolean)
 	setVisual(player, on)
 end
 
+local function inBeam(origin: Vector3, aim: Vector3, position: Vector3): (boolean, Vector3)
+	local offset = position - origin
+	local distance = offset.Magnitude
+	if distance > FL.Range or distance <= 0.1 then
+		return false, offset
+	end
+	local alignment = aim:Dot(offset / distance)
+	return alignment >= cosCone or (distance < 7 and alignment >= cosClose), offset
+end
+
+-- onLit(player, dt) runs every beam tick while `model` is in a player's lit cone.
+function CombatService.RegisterLightTarget(model: Model, onLit: (player: Player, dt: number) -> ())
+	lightTargets[model] = onLit
+end
+
+function CombatService.UnregisterLightTarget(model: Model)
+	lightTargets[model] = nil
+end
+
+local function revealTargets(player: Player, origin: Vector3, aim: Vector3, dt: number)
+	for model, onLit in lightTargets do
+		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and model.Parent then
+			local lit, offset = inBeam(origin, aim, root.Position)
+			if lit then
+				local hit = workspace:Raycast(origin, offset, rayParams)
+				if hit == nil or hit.Instance:IsDescendantOf(model) then
+					task.spawn(onLit, player, dt)
+				end
+			end
+		end
+	end
+end
+
 local function burn(player: Player, origin: Vector3, aim: Vector3, dt: number)
 	local damage = FL.DPS * dt * (1 + ProgressionService.UpgradeBonus(player, "Lens"))
 	for _, enemy in EnemyService.GetAll() do
@@ -236,6 +272,7 @@ local function tick(dt: number)
 		if state.On and head then
 			state.Battery = math.max(0, state.Battery - dt)
 			burn(player, head.Position, state.Aim, dt)
+			revealTargets(player, head.Position, state.Aim, dt)
 			if state.Battery <= 0 then
 				setBeam(player, false)
 				Notify.player(player, "🔋 Battery drained — release to recharge.", "warning")

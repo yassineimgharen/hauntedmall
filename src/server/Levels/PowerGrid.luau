@@ -10,7 +10,6 @@
 -- Everything is spawned at stage start and destroyed at stage end, so other levels and
 -- Free Shift never see these props.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
@@ -21,6 +20,7 @@ local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local Builder = require(script.Parent.Parent.World.Builder)
 local Layout = require(script.Parent.Parent.World.Layout)
+local Carry = require(script.Parent.Carry)
 
 local PowerGrid = {}
 
@@ -65,49 +65,15 @@ local PATROL = {
 
 local dayFolder: Folder? = nil
 local lampFolder: Folder? = nil
-local carrying: { [Player]: { Item: string, Visual: BasePart } } = {}
 local panelsDone = 0
 local nightToken: {}? = nil
-local connections: { RBXScriptConnection } = {}
 
 -- ── carrying ────────────────────────────────────────────────────────────────
 
-local function drop(player: Player)
-	local carried = carrying[player]
-	if carried then
-		carried.Visual:Destroy()
-		carrying[player] = nil
-	end
-	player:SetAttribute("Carrying", nil)
-end
-
 local function pickUp(player: Player, item: "Fuse" | "Lamp")
-	if GameStateService.GetPhase() ~= "Day" then
+	if GameStateService.GetPhase() ~= "Day" or not Carry.pickUp(player, item) then
 		return
 	end
-	local character = player.Character
-	local torso = character
-		and (character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")) :: BasePart?
-	if not torso then
-		return
-	end
-	drop(player)
-	local visual = Builder.decor({
-		Name = "Carried" .. item,
-		Size = if item == "Fuse" then Vector3.new(0.7, 1.3, 0.7) else Vector3.new(1.1, 1.6, 1.1),
-		CFrame = torso.CFrame * CFrame.new(0, 0.2, -1.1),
-		Color = if item == "Fuse" then Palette.NeonGold else Palette.WarmLight,
-		Material = Enum.Material.Neon,
-		Anchored = false,
-		Massless = true,
-	})
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = torso
-	weld.Part1 = visual
-	weld.Parent = visual
-	visual.Parent = character
-	carrying[player] = { Item = item, Visual = visual }
-	player:SetAttribute("Carrying", item)
 	Notify.player(
 		player,
 		if item == "Fuse"
@@ -118,12 +84,7 @@ local function pickUp(player: Player, item: "Fuse" | "Lamp")
 end
 
 local function consume(player: Player, item: string): boolean
-	local carried = carrying[player]
-	if not carried or carried.Item ~= item or GameStateService.GetPhase() ~= "Day" then
-		return false
-	end
-	drop(player)
-	return true
+	return GameStateService.GetPhase() == "Day" and Carry.consume(player, item)
 end
 
 -- ── day props ───────────────────────────────────────────────────────────────
@@ -342,13 +303,7 @@ end
 -- ── level hooks (called by MissionService) ──────────────────────────────────
 
 local function clearDay()
-	for player in carrying do
-		drop(player)
-	end
-	for _, connection in connections do
-		connection:Disconnect()
-	end
-	table.clear(connections)
+	Carry.clearAll()
 	if dayFolder then
 		dayFolder:Destroy()
 		dayFolder = nil
@@ -385,25 +340,6 @@ function PowerGrid.StartDay()
 		buildSpot(folder, lamps, position)
 	end
 	ReplicatedStorage:SetAttribute("PowerFlicker", true)
-
-	local function watch(player: Player)
-		table.insert(
-			connections,
-			player.CharacterRemoving:Connect(function()
-				drop(player)
-			end)
-		)
-	end
-	for _, player in Players:GetPlayers() do
-		watch(player)
-	end
-	table.insert(connections, Players.PlayerAdded:Connect(watch))
-	table.insert(
-		connections,
-		Players.PlayerRemoving:Connect(function(player)
-			carrying[player] = nil
-		end)
-	)
 end
 
 function PowerGrid.EndDay()

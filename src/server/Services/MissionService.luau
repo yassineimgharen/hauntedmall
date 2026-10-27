@@ -32,6 +32,9 @@ local ShopService = require(script.Parent.ShopService)
 
 local LEVEL_MODULES: { [string]: any } = {
 	PowerGrid = require(script.Parent.Parent.Levels.PowerGrid),
+	MissingDelivery = require(script.Parent.Parent.Levels.MissingDelivery),
+	Impostors = require(script.Parent.Parent.Levels.Impostors),
+	SecuritySystem = require(script.Parent.Parent.Levels.SecuritySystem),
 }
 
 type Stage = "Day" | "Night"
@@ -424,10 +427,11 @@ local function onEvent(player: Player?, event: string, amount: number)
 		return
 	end
 	local key = if player then player.UserId else nil
-	local before = {}
+	local before, failedBefore = {}, {}
 	for _, objective in current.Objectives do
 		if objective.Event == event then
 			before[objective.Id] = CampaignLogic.isDone(current, key, objective)
+			failedBefore[objective.Id] = CampaignLogic.isFailed(current, key, objective)
 		end
 	end
 	if not CampaignLogic.record(current, key, event, amount) then
@@ -441,6 +445,15 @@ local function onEvent(player: Player?, event: string, amount: number)
 					Notify.all(text, "success")
 				elseif player then
 					Notify.player(player, text, "success")
+				end
+			end
+		elseif objective.Event == event and (objective.Kind or "Count") == "Avoid" then
+			if not failedBefore[objective.Id] and CampaignLogic.isFailed(current, key, objective) then
+				local text = (if objective.Optional then "★ Bonus lost: " else "❌ FAILED: ") .. objective.Text
+				if objective.Scope == "Team" then
+					Notify.all(text, if objective.Optional then "warning" else "danger")
+				elseif player then
+					Notify.player(player, text, "warning")
 				end
 			end
 		end

@@ -26,7 +26,30 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §C: Campaign Levels 1–2 (test this build first)
+## §C2: Campaign Levels 3–4 (test after §C)
+
+Fastest route: set Workspace `MissionTest_Level` = `L03` (or `L04`) **before** Play. Play Day 3 and Day 4 without `FastPhases` (240 s days). For night-only checks, finish the day with `MissionTest_CompleteStage` = true, then `SkipPhase`.
+
+**Level 3: The Missing Delivery / Impostors**
+- [ ] C2-1 Day: a white "NIGHT SHIFT DELIVERIES" van with open rear doors stands in the plaza, east of the entrance path. The marker points to a glowing cyan clue by its rear; hold E. Each clue toasts a story line and the next one appears: atrium west, then the upper level (north side).
+- [ ] C2-2 The last clue names a cage letter, and the marker then points to that cage. Cages: A NW ground corner, B NE ground corner, C upper level SW, D far East Wing. Searching a wrong cage gives a "junk" toast.
+- [ ] C2-3 The right cage: 4 glowing crates appear. Grab one (a cardboard box on your chest) and load it at the green ring behind the van. You get a toast plus "+6 stock" if you own a shop, and crates stack in the van. Die or swap items while carrying one: it reappears at the stash.
+- [ ] C2-4 Night: 9 shoppers wander. Within about 20–40 s some begin following others. The followed shopper says "😰 Someone's following me!". Followers flicker and sometimes show garbled text or 🙂, and idle ones turn to stare at you.
+- [ ] C2-5 Hold the beam on a follower for about 1.5 s: "👻 UNMASKED!", and a pale, glassy crawler with cyan eyes appears. Burn it: Phantoms 1/4. Light a real shopper instead: "🙈 Hey! I'm real!" and the ★ "never light a real shopper" bonus is lost.
+- [ ] C2-6 Let a follower stay on a shopper for about 5 s: the shopper fades with "😱" and the 🛡 row reads "Shoppers lost (1/2 max)". A 3rd loss shows "❌ FAILED" and the level fails at dawn.
+- [ ] C2-7 At dawn, surviving shoppers say "😊 Thank you!" and fade. LEVEL COMPLETE (+$350 · 400 XP).
+
+**Level 4: Security Upgrade / Mall Under Attack**
+- [ ] C2-8 Day: 4 sparking wall cameras (entrance, west hall, upper level north, East Wing end). Stand underneath, hold E, and they get a red REC light. 3 terminal consoles (atrium south of the fountain, upper level north, mid East Wing): hold E, screen "ONLINE". 2 red alarm boxes (atrium east wall, East Wing end): hold E, lamp goes green.
+- [ ] C2-9 Barricade: the hardware depot (where the Day 2 depot was) gives planks **only if you own a shop**. The build prompt appears **only at your own shop's door ring**. The built barricade is posts plus X-planks over the windows; the doorway stays open and customers still walk in.
+- [ ] C2-10 Night: each terminal has a health bar visible from afar. About 15 s in comes "🚨 CAMERA ALERT: … heading for the X Terminal!". Crawlers march to it and the bar drops; "⚠️ under attack" toasts follow. Kill them all: "✅ Attack … repelled!".
+- [ ] C2-11 "View Cameras" at a terminal: green-tinted feed with REC, camera name, shadow count. Q/E or the buttons switch cameras; X, moving or being hit exits. Your normal camera returns.
+- [ ] C2-12 Sound an alarm: "… N crawlers lured!", the lamp flashes red, and nearby crawlers walk to it and mill about for 8 s; it's usable again after 25 s.
+- [ ] C2-13 Let crawlers raid your barricaded shop: your stock stays put while the planks disappear; once broken, "Your barricade broke!" and stock drains.
+- [ ] C2-14 Lose 2 terminals: "❌ FAILED: Terminals lost", and LEVEL FAILED at dawn. Lose at most 1: LEVEL COMPLETE (+$450 · 500 XP), then "Level 5 … coming in a future update".
+- [ ] C2-15 Regression: Levels 1–2 still play as in §C; Day 2 fuses and lamps still carry correctly (shared carry code changed).
+
+## §C: Campaign Levels 1–2
 
 Setup: `git pull`, rebuild or reconnect `rojo serve`, press Play. Without API access, every Play is a brand-new player (memory store), which is ideal for testing Level 1. **Test Day 2 without `FastPhases`**; fast mode shrinks its 240 s day to about 72 s, too short for the carrying runs. `SkipPhase` is fine anywhere.
 
