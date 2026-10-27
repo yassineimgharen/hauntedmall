@@ -26,7 +26,34 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §F: Fixes: spider difficulty, escalators, closed shops (test this build first)
+## §C: Campaign Levels 1–2 (test this build first)
+
+Setup: `git pull`, rebuild or reconnect `rojo serve`, press Play. Without API access, every Play is a brand-new player (memory store), which is ideal for testing Level 1. **Test Day 2 without `FastPhases`**; fast mode shrinks its 240 s day to about 72 s, too short for the carrying runs. `SkipPhase` is fine anywhere.
+
+**Level 1**
+- [ ] C-1 The goals panel reads **DAY 1 · FIRST SHIFT**: claim / stock / serve (0/3) / upgrade, plus ★ Serve 6. The phase pill says DAY 1. Each step ticks with a ✅ toast; finishing shows "🌟 All day objectives done!".
+- [ ] C-2 At dusk: "✅ Day cleared!".
+- [ ] C-3 **Night 1 · First Contact**: objectives equip / burn / survive (+★ team 6, ★ no knockdown). The fuse boxes stay off (no ⚡ marker, no "Breakers" in the top line). At most 4 crawlers at once.
+- [ ] C-4 Dawn: green **LEVEL COMPLETE** banner (+$150 · 200 XP) and the toast "🔓 Level 2 unlocked". Press **M**: Level 1 ✅ CLEARED, Level 2 ▶ NEXT UP with your vote on it, chapters 2–6 🔒, levels 3–7 🚧.
+
+**Level 2**: the next sunrise plays it automatically.
+- [ ] C-5 **DAY 2 · POWER FAILURE**: day lights flicker. The marker points to the **maintenance depot** (south side, right of the entrance). Grab a fuse: a glowing item sits on your chest. The marker switches to the nearest sparking panel, whose "Install Spare Fuse" prompt only appears while you carry a fuse (hold E). Find all 4: west wall, north wall (under the balcony), upper-level west wall, far end of the East Wing. Flickering stops after the 4th.
+- [ ] C-6 Lamps: grab a lamp, place it on a glowing ring. 3 are required, 5 for ★. Rings: by the atrium breaker, on the balcony by its breaker, at the East Wing end, mid-corridor, and the NW atrium.
+- [ ] C-7 **NIGHT 2 · TOTAL BLACKOUT**: the lights stutter and die, the scene goes near-black, and your lamps glow. The top line shows "🌑 BLACKOUT ⚡ Breakers 0/3". Crawlers start near the breakers and patrol (they don't beeline to your shop). Crawlers walking into a lamp's light burn.
+- [ ] C-8 Restore a breaker (hold E 5 s): **that zone's** neon and uplights return. After all 3: normal night look, crawlers stunned, "POWER RESTORED". At dawn: LEVEL COMPLETE (+$250 · 300 XP), then "Level 3 … coming in a future update".
+
+**Failure and retry**
+- [ ] C-9 On Night 2, skip to dawn without the breakers (SkipPhase): red **LEVEL FAILED** banner with a reason. The next sunrise plays Level 2 again, and its day shows the hint "Day already cleared…".
+- [ ] C-10 Leave a day unfinished: at dusk "❌ Day objectives unfinished"; at dawn **DAY NOT CLEARED**.
+
+**Shortcuts, multiplayer, persistence**
+- [ ] C-11 Set `MissionTest_Level` = `L02` before Play: you start on Day 2 and still get credit. `MissionTest_CompleteStage` = true ticks the current stage's required objectives.
+- [ ] C-12 Two players (Test → Clients and Servers): both see the same level; team objectives are shared, personal ones separate. Votes (M) show counts. A player who joins during the night sees "joined mid-night" and gets **JOINED MID-NIGHT** at dawn.
+- [ ] C-13 Vote **Free Shift** (M): the next sunrise plays the classic loop (fuse boxes every night, no level objectives).
+- [ ] C-14 Private test experience (API on, §P): clear Level 1, rejoin, and the map still shows it cleared. An older save that had finished the tutorial and a night starts at Level 2.
+- [ ] C-15 Regression: shops, customers, upgrades, spiders' warnings, escalators, 🧪 test store.
+
+## §F: Fixes: spider difficulty, escalators, closed shops
 
 Use `FastPhases` = true. Use `SkipPhase` in the Server view to reach night quickly.
 

@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EconomyConfig = require(ReplicatedStorage.Shared.Config.EconomyConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local DataService = require(script.Parent.DataService)
 local ProgressionService = require(script.Parent.ProgressionService)
@@ -120,6 +121,7 @@ local function claim(shop: Shop, player: Player)
 		"success"
 	)
 	ProgressionService.MarkTutorial(player, "Claimed")
+	MissionEvents.record(player, "ShopClaimed")
 	Notify.effect(player, "Purchase")
 	ShopService.ShopClaimed:Fire(shop, player)
 end
@@ -176,6 +178,7 @@ function ShopService.Restock(player: Player)
 		Notify.player(player, string.format("📦 +%d stock delivered ($%d)", units, cost), "success")
 		Notify.effect(player, "Purchase")
 		ProgressionService.MarkTutorial(player, "Stocked")
+		MissionEvents.record(player, "Restocked")
 		return
 	end
 
@@ -193,6 +196,7 @@ function ShopService.Restock(player: Player)
 		)
 		Notify.effect(player, "Purchase")
 		ProgressionService.MarkTutorial(player, "Stocked")
+		MissionEvents.record(player, "Restocked")
 		return
 	end
 	Notify.player(
@@ -218,6 +222,7 @@ function ShopService.Sell(shop: Shop, served: boolean): number
 	ProgressionService.AddStat(owner, "Sales", 1)
 	if served then
 		ProgressionService.MarkTutorial(owner, "Served")
+		MissionEvents.record(owner, "Served")
 	end
 	refreshStock(shop)
 	Notify.effect(owner, "Sale", {

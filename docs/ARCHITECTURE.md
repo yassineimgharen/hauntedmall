@@ -68,6 +68,7 @@ Client: waits for `game.Loaded` and `workspace.Mall`, then starts its controller
 | `AimUpdate(aim)` | C→S (unreliable) | 20 / 20 | same aim validation; ignored while beam is off |
 | `SaveSettings(t)` | C→S | 1 / 3 | known keys only, fractions in [0,1], boolean |
 | `RequestPurchase(kind, key)` | C→S | 2 / 3 | kind ∈ Product/GamePass; key must exist in `MonetizationConfig`; only *opens a prompt*, never grants |
+| `VoteLevel(levelId)` | C→S | 2 / 4 | level must exist, be implemented and unlocked for the voter (or "FREE"); only a vote, the server picks at sunrise |
 | `Notify(text, kind)` | S→C | — | — |
 | `NightResults(data)` | S→C | — | — |
 | `Effect(kind, payload)` | S→C | — | cosmetic only |
@@ -123,3 +124,7 @@ Adding an enemy type: add a config entry in `EnemyConfig.Types`, a builder in `s
 ## Monetization architecture
 
 Implemented (Phase 1 of monetization): a single ProcessReceipt handler, idempotent persisted receipts, game-pass ownership checks, server-validated prompts, and a Studio-only test store. The store is closed (`Enabled = false`, Ids 0). Full design, guarantees and test plan: [MONETIZATION.md](MONETIZATION.md).
+
+## Campaign
+
+`MissionService` runs per-level objectives on top of the shared clock; see [CAMPAIGN.md](CAMPAIGN.md).

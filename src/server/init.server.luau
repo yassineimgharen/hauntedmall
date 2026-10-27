@@ -12,6 +12,7 @@ local SERVICE_ORDER = {
 	"CustomerService",
 	"EnemyService",
 	"CombatService",
+	"MissionService",
 	"NightService",
 	"MonetizationService",
 }

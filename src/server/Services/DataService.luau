@@ -20,7 +20,7 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 
 local STORE_NAME = "NightShift_PlayerData_v1"
 	.. (if RunService:IsStudio() then GameConfig.StudioDataStoreSuffix else "")
-local SCHEMA_VERSION = 1
+local SCHEMA_VERSION = 2
 local LOCK_TTL = GameConfig.AutosaveInterval * 3
 local LOAD_ATTEMPTS = 6
 local LOCK_RETRY_DELAY = 4
@@ -86,6 +86,12 @@ local function defaultData(): { [string]: any }
 			SurvivedNight = false,
 		},
 		LastEmergencyStockAt = 0,
+		-- Campaign progress (MissionService). Level ids are CampaignConfig ids ("L01").
+		Campaign = {
+			Completed = {}, -- [levelId] = unix time of the first clear
+			DayCleared = {}, -- [levelId] = true once that level's day objectives were met
+			OptionalDone = {}, -- ["L01/serve6"] = true (optional bonus XP paid once)
+		},
 		-- Purchase ledger (see MonetizationService). Granting a product and recording its
 		-- PurchaseId happen in the same profile write, so a receipt can never be granted twice.
 		ProcessedReceipts = {}, -- [PurchaseId] = unix time granted (real Roblox receipts only)
@@ -96,7 +102,16 @@ local function defaultData(): { [string]: any }
 end
 
 -- Schema migrations: MIGRATIONS[n] upgrades data from version n to n + 1.
-local MIGRATIONS: { [number]: (data: { [string]: any }) -> () } = {}
+local MIGRATIONS: { [number]: (data: { [string]: any }) -> () } = {
+	-- v1 → v2: campaign added. Players who already finished the old tutorial day and
+	-- survived a night have played Level 1's content, so it is credited (no rewards paid).
+	[1] = function(data)
+		local tutorial = data.Tutorial
+		if type(tutorial) == "table" and tutorial.Completed == true and tutorial.SurvivedNight == true then
+			data.Campaign = { Completed = { L01 = os.time() }, DayCleared = { L01 = true }, OptionalDone = {} }
+		end
+	end,
+}
 
 local function reconcile(data: { [string]: any }, template: { [string]: any })
 	for key, value in template do
@@ -123,6 +138,15 @@ local function sanitize(data: { [string]: any })
 	end
 	if not finite(data.Stock) or data.Stock < 0 then
 		data.Stock = 0
+	end
+	local campaign = data.Campaign
+	if
+		type(campaign) ~= "table"
+		or type(campaign.Completed) ~= "table"
+		or type(campaign.DayCleared) ~= "table"
+		or type(campaign.OptionalDone) ~= "table"
+	then
+		data.Campaign = { Completed = {}, DayCleared = {}, OptionalDone = {} }
 	end
 end
 

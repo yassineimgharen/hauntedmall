@@ -6,7 +6,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local CampaignConfig = require(ReplicatedStorage.Shared.Campaign.CampaignConfig)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
+local MissionClient = require(script.Parent.Parent.Parent.MissionClient)
 local Components = require(script.Parent.Parent.Components)
 local Create = require(script.Parent.Parent.Create)
 local Theme = require(script.Parent.Parent.Theme)
@@ -66,7 +68,7 @@ local function serverNow(): number
 	return workspace:GetServerTimeNow()
 end
 
-function Hud.new(root: Frame, callbacks: { OpenShop: () -> (), OpenSettings: () -> () })
+function Hud.new(root: Frame, callbacks: { OpenShop: () -> (), OpenSettings: () -> (), OpenCampaign: () -> () })
 	local self = setmetatable({}, Hud)
 	self.Root = Create("Frame", {
 		Name = "HUD",
@@ -194,7 +196,7 @@ end
 function Hud:_buildGoals()
 	local panel = Components.panel({
 		Name = "Goals",
-		Size = UDim2.fromOffset(270, 214),
+		Size = UDim2.fromOffset(290, 214),
 		Position = UDim2.fromOffset(16, 126),
 		BackgroundTransparency = 0.2,
 		Parent = self.Root,
@@ -213,13 +215,14 @@ function Hud:_buildGoals()
 		BackgroundTransparency = 1,
 		Parent = panel,
 	}, { Create.list(nil, 6) })
+	self.GoalsPanel = panel
 	self.GoalRows = {}
-	for i = 1, 4 do
+	for i = 1, 6 do
 		self.GoalRows[i] = Create.text({
 			Size = UDim2.new(1, 0, 0, 26),
 			Text = "",
 			TextScaled = false,
-			TextSize = 16,
+			TextSize = 15,
 			TextWrapped = true,
 			FontFace = Theme.Fonts.Body,
 			LayoutOrder = i,
@@ -276,7 +279,7 @@ end
 
 function Hud:_buildButtons()
 	local column = Create("Frame", {
-		Size = UDim2.fromOffset(72, 170),
+		Size = UDim2.fromOffset(72, 260),
 		Position = UDim2.new(1, -16, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
@@ -302,7 +305,8 @@ function Hud:_buildButtons()
 		})
 	end
 	sideButton("🏪", "SHOP [B]", C.Pink, 1, self.Callbacks.OpenShop)
-	sideButton("⚙️", "SETTINGS", C.PanelLighter, 2, self.Callbacks.OpenSettings)
+	sideButton("🗺️", "CAMPAIGN [M]", C.Purple, 2, self.Callbacks.OpenCampaign)
+	sideButton("⚙️", "SETTINGS", C.PanelLighter, 3, self.Callbacks.OpenSettings)
 end
 
 function Hud:_buildOverlays()
@@ -501,12 +505,58 @@ local DAY_STEPS = {
 	{ Flag = "Upgraded", Text = "Buy an upgrade", Hint = "Press B (or 🏪) and pick an upgrade you can afford." },
 }
 
+-- Campaign objectives from MissionService. Returns false when no level is running.
+function Hud:_missionGoals(): (boolean, { { Text: string, State: string } }, string)
+	local snapshot = MissionClient.Snapshot
+	if not snapshot or not snapshot.Rows then
+		return false, {}, ""
+	end
+	self.GoalsTitle.Text = snapshot.Title or "MISSION"
+	local rows = {}
+	local nextFound = false
+	for _, row in snapshot.Rows do
+		local text = row.Text
+		if row.Target > 1 then
+			text ..= string.format(" (%d/%d)", row.Progress, row.Target)
+		end
+		if row.Team then
+			text = "👥 " .. text
+		end
+		local state = "todo"
+		if row.Failed then
+			state = "failed"
+		elseif row.Done then
+			state = "done"
+		elseif row.Optional then
+			state = "optional"
+		elseif not nextFound and not snapshot.Final then
+			nextFound = true
+			state = "next"
+		end
+		table.insert(rows, { Text = text, State = state })
+	end
+	local hint = snapshot.Hint or ""
+	if snapshot.Guest then
+		hint = "Guest: this level isn't unlocked for you yet, so no level credit (cash & XP still count)."
+	elseif snapshot.LateJoin then
+		hint = "You joined mid-night: help out! Level credit starts with the next full night."
+	elseif snapshot.Final then
+		hint = if snapshot.Stage == "Day" then "Day over. Night is coming…" else "Night over. Results incoming…"
+	elseif snapshot.Stage == "Day" and snapshot.DayCleared then
+		hint = if hint ~= "" then hint else "Day already cleared on an earlier try. Tonight is what counts."
+	end
+	return true, rows, hint
+end
+
 function Hud:_updateGoals()
 	local phase = ReplicatedStorage:GetAttribute("Phase")
-	local rows: { { Text: string, State: "done" | "next" | "todo" | "info" } } = {}
+	local rows: { { Text: string, State: string } } = {}
 	local hint = ""
 
-	if phase == "Night" or phase == "Dusk" then
+	local mission, missionRows, missionHint = self:_missionGoals()
+	if mission then
+		rows, hint = missionRows, missionHint
+	elseif phase == "Night" or phase == "Dusk" then
 		local repaired = ReplicatedStorage:GetAttribute("FusesRepaired") or 0
 		local total = ReplicatedStorage:GetAttribute("FusesTotal") or 3
 		local equipped = player.Character ~= nil and player.Character:FindFirstChild("Flashlight") ~= nil
@@ -572,12 +622,20 @@ function Hud:_updateGoals()
 		next = { "▶ ", C.Gold },
 		todo = { "⬜ ", C.TextDim },
 		info = { "• ", C.Text },
+		optional = { "★ ", C.Cyan },
+		failed = { "❌ ", C.Red },
 	}
-	for i, row in rows do
-		local style = styles[row.State]
-		self.GoalRows[i].Text = style[1] .. row.Text
-		self.GoalRows[i].TextColor3 = style[2]
+	for i, label in self.GoalRows do
+		local row = rows[i]
+		label.Visible = row ~= nil
+		if row then
+			local style = styles[row.State] or styles.info
+			label.Text = style[1] .. row.Text
+			label.TextColor3 = style[2]
+		end
 	end
+	local count = math.min(#rows, #self.GoalRows)
+	self.GoalsPanel.Size = UDim2.fromOffset(290, 38 + count * 32 + (if hint ~= "" then 48 else 8))
 	self.GoalHint.Text = hint
 end
 
@@ -585,8 +643,13 @@ function Hud:_updatePhase()
 	local phase = ReplicatedStorage:GetAttribute("Phase") or "Intermission"
 	local info = PHASES[phase] or PHASES.Intermission
 	local night = ReplicatedStorage:GetAttribute("NightNumber") or 0
+	local level = ReplicatedStorage:GetAttribute("LevelIndex") or 0
 	self.PhaseIcon.Text = info.Icon
-	self.PhaseTitle.Text = info.Title(night)
+	if level > 0 and (phase == "Day" or phase == "Night") then
+		self.PhaseTitle.Text = string.upper(phase) .. " " .. level
+	else
+		self.PhaseTitle.Text = info.Title(night)
+	end
 	self.PhaseTitle.TextColor3 = info.Color
 	if self.PhaseStroke then
 		self.PhaseStroke.Color = info.Color
@@ -603,10 +666,14 @@ function Hud:_tick()
 
 	local phase = ReplicatedStorage:GetAttribute("Phase")
 	if phase == "Night" then
+		local total = ReplicatedStorage:GetAttribute("FusesTotal") or 0
+		local fuses = if total > 0
+			then string.format("⚡ Breakers %d/%d   ", ReplicatedStorage:GetAttribute("FusesRepaired") or 0, total)
+			else ""
 		self.NightInfo.Text = string.format(
-			"⚡ Fuses %d/%d   👁️ Wave %d   👾 %d shadows",
-			ReplicatedStorage:GetAttribute("FusesRepaired") or 0,
-			ReplicatedStorage:GetAttribute("FusesTotal") or 3,
+			"%s%s👁️ Wave %d   👾 %d shadows",
+			if ReplicatedStorage:GetAttribute("Blackout") then "🌑 BLACKOUT   " else "",
+			fuses,
 			ReplicatedStorage:GetAttribute("Wave") or 0,
 			workspace:GetAttribute("EnemiesAlive") or 0
 		)
@@ -666,8 +733,16 @@ function Hud:_bind()
 		local banner = BANNERS[phase]
 		if banner and self.Root.Visible then
 			local title = string.format(banner[1], ReplicatedStorage:GetAttribute("NightNumber") or 1)
+			local subtitle = banner[2]
+			local level = CampaignConfig.ById[ReplicatedStorage:GetAttribute("LevelId") or ""]
+			if level and (phase == "Day" or phase == "Night") then
+				title = string.format("%s %d: %s", string.upper(phase), level.Index, string.upper(level[phase].Name))
+				subtitle = level[phase].Teaser
+			elseif level and phase == "Dawn" then
+				subtitle = "The shadows retreat. Checking your level results…"
+			end
 			local info = PHASES[phase]
-			self:ShowBanner(title, banner[2], info and info.Color)
+			self:ShowBanner(title, subtitle, info and info.Color)
 		end
 	end)
 	self:_updatePhase()

@@ -8,6 +8,7 @@ local UpgradeConfig = require(ReplicatedStorage.Shared.Config.UpgradeConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local Validate = require(ReplicatedStorage.Shared.Util.Validate)
+local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local DataService = require(script.Parent.DataService)
 
@@ -171,6 +172,7 @@ local function purchaseUpgrade(player: Player, id: any)
 	)
 	Notify.effect(player, "Purchase")
 	ProgressionService.MarkTutorial(player, "Upgraded")
+	MissionEvents.record(player, "Upgraded")
 	ProgressionService.UpgradePurchased:Fire(player, id, level + 1)
 end
 

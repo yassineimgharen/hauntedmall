@@ -6,6 +6,10 @@
 --   DayNeon   (Part)   warm neon that goes dark at night
 --   NightNeon (Part)   pastel by day, saturated + flickering at night
 --   NightLight(Light)  off by day, on at night
+--
+-- Blackout nights (ReplicatedStorage Blackout = true) use the Blackout preset and keep
+-- NightLight/NightNeon dark except in zones listed in PoweredZones ("Atrium,Balcony,
+-- Corridor": the breaker ids). PowerFlicker = true makes day lights stutter (Day 2).
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
@@ -25,6 +29,39 @@ local nightLightBrightness: { [Light]: number } = {}
 local baseColor: { [BasePart]: Color3 } = {}
 local isNight = false
 local sequence = 0
+local zoneCache: { [Instance]: string } = {}
+
+-- Which breaker powers this light: East Wing (corridor + shops), upper level, or atrium.
+local function zoneOf(instance: Instance): string
+	local cached = zoneCache[instance]
+	if cached then
+		return cached
+	end
+	local holder = if instance:IsA("Light") then instance.Parent else instance
+	local position = if holder and holder:IsA("BasePart")
+		then holder.Position
+		elseif holder and holder:IsA("Attachment") then holder.WorldPosition
+		else Vector3.zero
+	local zone = if position.X >= 70 then "Corridor" elseif position.Y >= 18 then "Balcony" else "Atrium"
+	zoneCache[instance] = zone
+	return zone
+end
+
+-- nil = every zone powered (normal night); otherwise the set of re-powered zones.
+local function poweredZones(): { [string]: boolean }?
+	if ReplicatedStorage:GetAttribute("Blackout") ~= true then
+		return nil
+	end
+	local zones = {}
+	for zone in string.gmatch(ReplicatedStorage:GetAttribute("PoweredZones") or "", "[^,]+") do
+		zones[zone] = true
+	end
+	return zones
+end
+
+local function nightPreset(): string
+	return if ReplicatedStorage:GetAttribute("Blackout") == true then "Blackout" else "Night"
+end
 
 local function reducedEffects(): boolean
 	return player:GetAttribute("Set_ReducedEffects") == true
@@ -97,9 +134,14 @@ local function setDayLights(on: boolean, duration: number)
 end
 
 local function setNightMode(on: boolean, duration: number)
+	local zones = if on then poweredZones() else nil
 	for _, part in CollectionService:GetTagged("NightNeon") do
 		local base = neonColor(part)
-		tweenProps(part, { Color = if on then base else base:Lerp(Color3.new(1, 1, 1), 0.4) }, duration)
+		local color = if not on
+			then base:Lerp(Color3.new(1, 1, 1), 0.4)
+			elseif zones and not zones[zoneOf(part)] then base:Lerp(Color3.new(0, 0, 0), 0.9)
+			else base
+		tweenProps(part, { Color = color }, duration)
 	end
 	for _, light in CollectionService:GetTagged("NightLight") do
 		local base = nightLightBrightness[light]
@@ -107,7 +149,7 @@ local function setNightMode(on: boolean, duration: number)
 			base = (light:GetAttribute("NightBrightness") :: number?) or math.max(light.Brightness, 1.4)
 			nightLightBrightness[light] = base
 		end
-		fadeLight(light, on, base, duration)
+		fadeLight(light, on and (zones == nil or zones[zoneOf(light)] == true), base, duration)
 	end
 end
 
@@ -123,7 +165,7 @@ local function powerDown(token: number, duration: number)
 		end
 	end
 	setDayLights(false, 0.4)
-	applyPreset("Night", math.max(duration - 2, 1))
+	applyPreset(nightPreset(), math.max(duration - 2, 1))
 	task.wait(1.2)
 	if sequence == token then
 		setNightMode(true, 2)
@@ -139,7 +181,7 @@ local function onPhase(instant: boolean)
 	if phase == "Dusk" or phase == "Night" then
 		isNight = true
 		if instant or phase == "Night" then
-			applyPreset("Night", if instant then 0 else 2)
+			applyPreset(nightPreset(), if instant then 0 else 2)
 			setDayLights(false, if instant then 0 else 1)
 			setNightMode(true, if instant then 0 else 1)
 		else
@@ -154,10 +196,40 @@ local function onPhase(instant: boolean)
 	end
 end
 
--- Random neon stutter at night; skipped with Reduced Effects.
+-- Blackout started, a zone came back, or power fully returned.
+local function onPowerChanged()
+	if not isNight then
+		return
+	end
+	local blackoutStarting = ReplicatedStorage:GetAttribute("Blackout") == true
+		and (ReplicatedStorage:GetAttribute("PoweredZones") or "") == ""
+	if blackoutStarting and not reducedEffects() then
+		for i = 1, 6 do -- the lights stutter and die
+			setNightMode(i % 2 == 0, 0)
+			task.wait(rng:NextNumber(0.05, 0.18))
+		end
+	end
+	applyPreset(nightPreset(), if blackoutStarting then 1 else 3)
+	setNightMode(true, 1.2)
+end
+
+-- Random neon stutter at night (and failing day lights during a power fault); skipped
+-- with Reduced Effects.
 local function flickerLoop()
 	while true do
 		task.wait(rng:NextNumber(0.15, 0.5))
+		if not isNight and ReplicatedStorage:GetAttribute("PowerFlicker") == true and not reducedEffects() then
+			local lights = CollectionService:GetTagged("DayLight")
+			if #lights > 0 and rng:NextNumber() < 0.6 then
+				local light = lights[rng:NextInteger(1, #lights)] :: Light
+				if light.Enabled then
+					light.Enabled = false
+					task.delay(rng:NextNumber(0.08, 0.3), function()
+						light.Enabled = true
+					end)
+				end
+			end
+		end
 		if isNight and not reducedEffects() then
 			local neon = CollectionService:GetTagged("NightNeon")
 			if #neon > 0 then
@@ -200,6 +272,12 @@ function LightingController.Start()
 	end)
 	player:GetAttributeChangedSignal("Set_ReducedEffects"):Connect(function()
 		onPhase(true)
+	end)
+	ReplicatedStorage:GetAttributeChangedSignal("Blackout"):Connect(function()
+		task.spawn(onPowerChanged)
+	end)
+	ReplicatedStorage:GetAttributeChangedSignal("PoweredZones"):Connect(function()
+		task.spawn(onPowerChanged)
 	end)
 	task.spawn(flickerLoop)
 end

@@ -1,5 +1,7 @@
--- Orchestrates each night: enemy waves, the fuse-box co-op objective, safe zones,
--- participation tracking, and dawn rewards (cash, XP, collectibles).
+-- Orchestrates each night: enemy waves, the fuse-box (breaker) co-op objective, safe
+-- zones, blackouts, participation tracking, and dawn rewards (cash, XP, collectibles).
+-- What a night contains comes from MissionService.GetNightRules() (the active campaign
+-- level, or the classic loop in Free Shift); objective progress goes out via MissionEvents.
 --
 -- Reward fairness: every player who damaged an enemy gets full kill credit (no kill
 -- stealing). Survival bonus is full for anyone who contributed, half for idle players.
@@ -13,9 +15,11 @@ local EconomyConfig = require(ReplicatedStorage.Shared.Config.EconomyConfig)
 local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
 local Palette = require(ReplicatedStorage.Shared.Config.Palette)
 local Net = require(ReplicatedStorage.Shared.Net)
+local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local EnemyService = require(script.Parent.EnemyService)
 local GameStateService = require(script.Parent.GameStateService)
+local MissionService = require(script.Parent.MissionService)
 local ProgressionService = require(script.Parent.ProgressionService)
 
 type NightStats = {
@@ -42,10 +46,12 @@ local fuses: { Fuse } = {}
 local spawnPoints: { BasePart } = {}
 local nightToken: {}? = nil
 local allFusesDone = false
+local rules: { [string]: any } = { Tier = 1, Fuses = true, Blackout = false, Free = true }
+local powered: { [string]: boolean } = {}
 local rng = Random.new()
 
 local function multiplier(): number
-	return 1 + (GameStateService.GetNight() - 1) * EconomyConfig.Night.ScalingPerNight
+	return 1 + ((rules.Tier or 1) - 1) * EconomyConfig.Night.ScalingPerNight
 end
 
 local function statsFor(player: Player): NightStats
@@ -73,6 +79,7 @@ end
 local function setFuseVisual(fuse: Fuse, mode: "Idle" | "Broken" | "Repaired")
 	fuse.Repaired = mode == "Repaired"
 	fuse.Model:SetAttribute("Repaired", fuse.Repaired)
+	fuse.Model:SetAttribute("Broken", mode == "Broken")
 	fuse.Sparks.Enabled = mode == "Broken"
 	fuse.Prompt.Enabled = mode == "Broken"
 	if mode == "Idle" then
@@ -94,15 +101,26 @@ local function publishFuses()
 		end
 	end
 	ReplicatedStorage:SetAttribute("FusesRepaired", repaired)
-	ReplicatedStorage:SetAttribute("FusesTotal", #fuses)
+	ReplicatedStorage:SetAttribute("FusesTotal", if rules.Fuses then #fuses else 0)
 	return repaired
 end
 
+local function publishPower()
+	local zones = {}
+	for zone in powered do
+		table.insert(zones, zone)
+	end
+	ReplicatedStorage:SetAttribute("PoweredZones", table.concat(zones, ","))
+end
+
 local function onFuseRepaired(fuse: Fuse, player: Player)
-	if fuse.Repaired or not GameStateService.IsNight() then
+	if fuse.Repaired or not GameStateService.IsNight() or not rules.Fuses then
 		return
 	end
 	setFuseVisual(fuse, "Repaired")
+	powered[tostring(fuse.Model:GetAttribute("FuseId"))] = true
+	publishPower()
+	MissionEvents.record(player, "BreakerRestored")
 	statsFor(player).Fuses += 1
 	ProgressionService.AddStat(player, "FusesRepaired", 1)
 	reward(player, 0, EconomyConfig.XP.Fuse)
@@ -122,7 +140,14 @@ local function onFuseRepaired(fuse: Fuse, player: Player)
 	if repaired == #fuses and not allFusesDone then
 		allFusesDone = true
 		EnemyService.StunAll(EnemyConfig.Fuses.AllRepairedStun)
-		Notify.all("💡 EMERGENCY POWER RESTORED — the shadows are stunned!", "success")
+		ReplicatedStorage:SetAttribute("Blackout", false)
+		MissionEvents.record(nil, "PowerRestored")
+		local elapsed = workspace:GetServerTimeNow() - (ReplicatedStorage:GetAttribute("PhaseStartedAt") or 0)
+		local duration = ReplicatedStorage:GetAttribute("PhaseDuration") or 1
+		if rules.EarlyFraction and elapsed < duration * rules.EarlyFraction then
+			MissionEvents.record(nil, "PowerRestoredEarly")
+		end
+		Notify.all("💡 POWER RESTORED: the shadows are stunned!", "success")
 		Notify.effectAll("PowerRestored")
 	end
 end
@@ -149,29 +174,73 @@ local function pickSpawn(): BasePart?
 	return pool[rng:NextInteger(1, #pool)]
 end
 
+-- Wave pacing: the level's Waves table, or the classic formula in Free Shift.
+local function waveSize(wave: number, players: number): number
+	local waves = rules.Waves
+	if waves then
+		return waves.Base + math.floor(players * waves.PerPlayer) + (wave - 1) * waves.Growth
+	end
+	return EnemyConfig.WaveSize(rules.Tier, players)
+end
+
+local function maxAlive(players: number): number
+	local waves = rules.Waves
+	if waves then
+		return math.min(waves.MaxAlive, EnemyConfig.Waves.MaxAlive)
+	end
+	return EnemyConfig.MaxAlive(rules.Tier, players)
+end
+
+-- Guards start the night standing watch at the first patrol points (the breakers).
+local function spawnGuards(token: {})
+	local points = rules.PatrolPoints
+	if not points or not rules.Guards then
+		return
+	end
+	task.wait(2)
+	for i = 1, math.min(rules.Guards, #points) do
+		if nightToken ~= token then
+			return
+		end
+		local position = points[i]
+		for _, player in Players:GetPlayers() do
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root and (root.Position - position).Magnitude < 15 then
+				local fallback = pickSpawn()
+				position = if fallback then fallback.Position else position
+			end
+		end
+		local enemy = EnemyService.Spawn("ShadowCrawler", position, rules.Tier)
+		if enemy then
+			enemy.Patrols = true
+		end
+		task.wait(0.3)
+	end
+end
+
 local function runWaves(token: {})
-	task.wait(EnemyConfig.Waves.FirstWaveDelay)
+	task.wait(if rules.Waves then rules.Waves.FirstDelay else EnemyConfig.Waves.FirstWaveDelay)
+	local interval = if rules.Waves then rules.Waves.Interval else EnemyConfig.Waves.Interval
 	local wave = 0
 	while nightToken == token do
 		wave += 1
 		ReplicatedStorage:SetAttribute("Wave", wave)
-		Notify.all(string.format("👁️ Wave %d — they're coming!", wave), "danger")
-		local count = EnemyConfig.WaveSize(GameStateService.GetNight(), #Players:GetPlayers())
-		for _ = 1, count do
+		Notify.all(string.format("👁️ Wave %d: they're coming!", wave), "danger")
+		local players = #Players:GetPlayers()
+		for _ = 1, waveSize(wave, players) do
 			if nightToken ~= token then
 				return
 			end
-			local night = GameStateService.GetNight()
-			if EnemyService.AliveCount() < EnemyConfig.MaxAlive(night, #Players:GetPlayers()) then
+			if EnemyService.AliveCount() < maxAlive(players) then
 				local point = pickSpawn()
 				if point then
-					EnemyService.Spawn("ShadowCrawler", point.Position, night)
+					EnemyService.Spawn("ShadowCrawler", point.Position, rules.Tier)
 				end
 			end
 			task.wait(EnemyConfig.Waves.SpawnStagger)
 		end
 		local waited = 0
-		while waited < EnemyConfig.Waves.Interval and nightToken == token do
+		while waited < interval and nightToken == token do
 			task.wait(0.5)
 			waited += 0.5
 		end
@@ -227,20 +296,40 @@ end
 local function startNight()
 	local token = {}
 	nightToken = token
+	rules = MissionService.GetNightRules()
+	table.clear(powered)
+	publishPower()
 	for _, fuse in fuses do
-		setFuseVisual(fuse, "Broken")
+		fuse.Prompt.HoldDuration = rules.RepairTime or EnemyConfig.Fuses.RepairTime
+		setFuseVisual(fuse, if rules.Fuses then "Broken" else "Idle")
 	end
 	publishFuses()
-	Notify.all("⚡ The power is out! Repair the fuse boxes and survive until dawn.", "warning")
+	ReplicatedStorage:SetAttribute("Blackout", rules.Blackout == true)
+	EnemyService.SetBehavior({
+		PatrolPoints = if rules.Patrol then rules.PatrolPoints else nil,
+		PatrolShare = 0.6,
+		SightScale = rules.SightScale or 1,
+	})
+	Notify.all(
+		rules.Intro or "⚡ The power is out! Repair the fuse boxes and survive until dawn.",
+		if rules.Blackout then "danger" else "warning"
+	)
+	task.spawn(spawnGuards, token)
 	task.spawn(runWaves, token)
-	task.spawn(runSafeZones, token)
+	if rules.Fuses then
+		task.spawn(runSafeZones, token)
+	end
 end
 
 local function startDawn()
 	nightToken = nil
 	EnemyService.ClearAll()
+	EnemyService.SetBehavior(nil)
 	ReplicatedStorage:SetAttribute("Wave", 0)
-	local night = GameStateService.GetNight()
+	ReplicatedStorage:SetAttribute("Blackout", false)
+	table.clear(powered)
+	publishPower()
+	local night = rules.LevelIndex or GameStateService.GetNight()
 	local mult = multiplier()
 	local cfg = EconomyConfig.Night
 
@@ -249,7 +338,7 @@ local function startDawn()
 			local contributed = s.Kills > 0 or s.Fuses > 0
 			local bonus = cfg.SurviveBonus * (if contributed then 1 else 0.5)
 			bonus += s.Fuses * cfg.PerFuse
-			if allFusesDone then
+			if allFusesDone and rules.Fuses then
 				bonus += cfg.AllFusesBonus
 			end
 			reward(player, bonus * mult, EconomyConfig.XP.Survive)
@@ -309,10 +398,12 @@ function NightService.Start()
 
 	EnemyService.Killed:Connect(function(_enemy, contributors)
 		local cash = EconomyConfig.Night.PerKill * multiplier()
+		MissionEvents.record(nil, "EnemyDefeated")
 		for player in contributors do
 			if player.Parent then
 				statsFor(player).Kills += 1
 				ProgressionService.AddStat(player, "Kills", 1)
+				MissionEvents.record(player, "Kill")
 				reward(player, cash, EconomyConfig.XP.Kill)
 				Notify.effect(player, "Kill", { Amount = math.floor(cash + 0.5) })
 			end

@@ -19,6 +19,10 @@ GameStateService.PhaseChanged = Signal.new() -- (phase, nightNumber)
 
 local phase: Phase = "Intermission"
 local nightNumber = 0
+-- Called synchronously (must not yield) as each phase begins, before it is published.
+-- Returns that phase's duration in normal-speed seconds, or nil for the default.
+-- MissionService uses it to pick the level at dawn of each Day and to set level lengths.
+local phaseHook: ((Phase) -> number?)? = nil
 
 function GameStateService.GetPhase(): Phase
 	return phase
@@ -32,15 +36,22 @@ function GameStateService.IsNight(): boolean
 	return phase == "Night"
 end
 
-local function durations()
+function GameStateService.SetPhaseHook(hook: (Phase) -> number?)
+	phaseHook = hook
+end
+
+local function phaseDuration(newPhase: Phase): number
+	local override = if phaseHook then phaseHook(newPhase) else nil
+	local normal = override or GameConfig.Phases[newPhase]
 	if RunService:IsStudio() and workspace:GetAttribute("FastPhases") == true then
-		return GameConfig.FastPhases
+		-- keep a level's relative length when testing fast
+		return normal * GameConfig.FastPhases[newPhase] / GameConfig.Phases[newPhase]
 	end
-	return GameConfig.Phases
+	return normal
 end
 
 local function runPhase(newPhase: Phase)
-	local duration = durations()[newPhase]
+	local duration = phaseDuration(newPhase)
 	phase = newPhase
 	ReplicatedStorage:SetAttribute("Phase", phase)
 	ReplicatedStorage:SetAttribute("PhaseStartedAt", workspace:GetServerTimeNow())

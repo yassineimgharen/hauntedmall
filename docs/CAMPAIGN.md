@@ -1,0 +1,110 @@
+# Campaign: Unique Day/Night Levels
+
+_2026-10-27. Implemented: campaign framework + **Level 1** and **Level 2**. Levels 3–42 are planned (shown as "coming soon" in game). Nothing here has been run in Studio yet; see `TESTING.md` §C._
+
+## 1. Audit (before this change)
+| Area | What existed |
+|---|---|
+| Clock | `GameStateService`: Intermission → (Day 150 s → Dusk → Night 120 s → Dawn) forever; server-wide `NightNumber` |
+| Nights | Identical every time: waves + the same 3 fuse boxes; only stats grew (`EnemyConfig.Scaled`) |
+| Day goals | 4 one-time tutorial flags (claim, stock, serve, upgrade) |
+| Progress | XP/levels, upgrades, collectibles, stats. **No levels, no completion rules, no failure**: waiting out the timer was the only "progress" |
+
+## 2. How it fits together
+```
+GameStateService (shared clock, never stops)
+  └─ phase hook ──▶ MissionService picks the level at sunrise, sets that level's Day/Night lengths
+MissionService
+  ├─ one objective tracker per stage (CampaignLogic, unit-tested)
+  ├─ level modules (src/server/Levels/*): spawn/clear stage props, e.g. PowerGrid
+  ├─ GetNightRules() ──▶ NightService (waves, breakers, blackout, patrols, guards)
+  └─ persists data.Campaign; MissionState / MissionResult remotes to clients
+Game systems ──MissionEvents.record(player, "Served")──▶ MissionService
+```
+| File | Role |
+|---|---|
+| `src/shared/Campaign/CampaignConfig.luau` | All 42 levels: names, teasers; for implemented ones objectives, rules, durations, rewards |
+| `src/shared/Campaign/CampaignLogic.luau` | Pure rules: objective tracking, unlocks, vote pick, outcomes, rewards |
+| `src/server/Services/MissionService.luau` | Runs the active level; credit, rewards, persistence, votes, Studio helpers |
+| `src/server/Levels/PowerGrid.luau` | Level 2 mechanic (depot, carried items, panels, lamps, lamp light pools, patrol points) |
+| `src/server/Util/MissionEvents.luau` | Event bus from game systems to missions |
+| `src/client/MissionClient.luau`, `UI/Screens/CampaignPanel.luau` | Objective snapshot store; campaign map (key **M**) |
+| `tests/Campaign.spec.luau` | 14 Lune tests (content validation + rules) |
+
+### Objective kinds
+| Kind | Completes when | Example |
+|---|---|---|
+| `Count` (Player or Team scope) | its event reaches `Target` | "Repair the electrical panels (4)" (Team) |
+| `Survive` | the stage ends | "Survive until dawn" |
+| `Avoid` | the stage ends without its event | "Don't get knocked down" (optional) |
+
+Every objective is driven by a real game event (`CampaignConfig.Events`); there are no text-only objectives. A new mechanic means a new level module plus events, with no changes to the core.
+
+## 3. Level 1 vs Level 2: what actually differs
+| | Level 1 | Level 2 |
+|---|---|---|
+| **Day objective** | *First Shift*: claim, order stock, serve 3, buy an upgrade (personal) | *Power Failure*: **carry** spare fuses from a maintenance depot to **4 sparking panels** around the mall (incl. the upper level and the far East Wing); **carry and place 3+ emergency lamps** (team) |
+| Day environment | normal day | day lights **flicker** until all panels are fixed; depot, panels and glowing lamp rings appear |
+| Day length | 150 s | 240 s |
+| **Night challenge** | *First Contact*: equip the flashlight, burn a crawler, survive | *Total Blackout*: **restore 3 breakers** (5 s hold each) before dawn |
+| Night lighting | standard night | **Blackout preset** (near-black); mall neon and uplights off; each restored breaker re-powers **its zone** (atrium / upper level / East Wing); the 3rd brings everything back and stuns all crawlers |
+| Enemies | small waves (≤ 4 alive), no breakers to fight over | **3 guards** start at the breakers; 60 % of crawlers **patrol** halls and breakers instead of raiding shops; sight −25 % in the dark |
+| Day → night link | none | lamps placed in the day become **light pools** that burn crawlers (lamps near the breakers make repairs safer; the 5-lamp bonus means a safer night) |
+| Failure | night: no crawler burned | night: breakers not all restored by dawn |
+| Optional | serve 6; team defeats 6; don't get downed | place all 5 lamps; serve 3; power back before midnight; burn 3; don't get downed |
+| Reward (first clear) | $150 · 200 XP | $250 · 300 XP |
+
+The unit test "day 2 / night 2 share no required objective events with day 1 / night 1" enforces that the required objectives never repeat.
+
+## 4. Completion, failure, retry
+- **Day** (checked at dusk): if your required day objectives are done, `DayCleared[level]` is saved. This is permanent, so a failed night never forces you to redo the day.
+- **Night** (checked at dawn): if the required night objectives are done and the day is cleared (now or earlier), the level is complete.
+- **Fail:** the level stays your "next" level and is replayed at a later sunrise. The dawn banner says why (`LEVEL FAILED` or `DAY NOT CLEARED`).
+- **Rewards:** full cash and XP on the first clear; 25 % on replays. Each optional objective gives +50 XP, once ever.
+- **The clock never decides progress.** Waiting does nothing; only the objectives count.
+
+## 5. Multiplayer rules
+| Concept | Scope | Where |
+|---|---|---|
+| Day/night clock | server | `GameStateService` |
+| Active level (mission) | server, fixed for one Day + Night | `ReplicatedStorage.LevelId` |
+| Campaign completion, DayCleared | **per player**, persisted | `data.Campaign` |
+| Player level / XP | per player | unchanged |
+| Unlocked chapters | per player, derived from completion | campaign map |
+
+- **Mission selection:** at each sunrise the server plays the level with the most votes. Your vote defaults to your own next level; change it in the campaign map (M). Ties go to the earliest level, so newer players aren't skipped ahead. Free Shift loses ties.
+- **Party progression:** everyone plays the same level. You get credit only if that level is unlocked for you. Otherwise you're a **guest**: cash and XP still count, but no level credit, and the HUD says so.
+- **Joining mid-round:** joining during the **day**, you can still clear it (team objectives already done count). Joining during the **night**, you can help, but there's no level credit that night (`LateJoin`), so nobody gets credit for a night they skipped.
+- **Replays:** vote for any cleared level (reduced rewards).
+- **Free Shift:** the classic endless loop (fuses every night, night-count scaling). It's the default after your last available level.
+- **Existing saves:** the schema goes v1 → v2. Players who had finished the old tutorial day *and* survived a night get Level 1 credited (no rewards paid), so they start at Level 2.
+
+## 6. Studio helpers
+Set these as Workspace attributes in the Server view.
+
+| Attribute | Effect |
+|---|---|
+| `MissionTest_Level` (string, e.g. `L02`) | plays this level from the next sunrise; credit is granted even if locked (Studio DataStore only) |
+| `MissionTest_CompleteStage` (bool) | marks the current stage's **required objectives** complete. This only touches objectives: the world isn't changed, so e.g. the blackout lights stay off |
+| `FastPhases` / `SkipPhase` | as before. FastPhases scales level lengths too (Day 2 becomes about 72 s, too short to finish by hand; test Day 2 at normal speed) |
+
+## 7. Six-chapter plan
+Chapter 1 levels 3–7 follow your brief exactly. Each later level's mechanic is a new module on the same framework.
+
+| Ch | Levels | Area | Days → Nights (summary) | Boss |
+|---|---|---|---|---|
+| 1 | 1–7 | East Wing | First Shift/First Contact · Power Failure/Total Blackout · Missing Delivery/Impostors · Security Upgrade/Mall Under Attack · Restricted Access/The Stalker · Final Preparations/Rescue Mission · The Warning/**The Shadow Queen** | Shadow Queen |
+| 2 | 8–14 | Food Court | deliveries/grease fires · inspection/cold storage · lost recipes/infected diners · supply escort/rat swarms · valve puzzle/flooding · co-op cooking/siege · warning/boss | The Gorging Chef |
+| 3 | 15–21 | Underground Parking | mapping/headlight weapons · battery carry/stealth · cart puzzle/chase · substation/multi-level blackout · lost cars/rescue · barricades/defense · warning/boss | The Concrete Guardian |
+| 4 | 22–28 | Abandoned Cinema | projector/haunted screens · reels/illusions · code puzzle/sound stealth · ushers/phantom audience · secret passages/timed puzzle · cursed reel/booth siege · premiere/boss | The Phantom Projectionist |
+| 5 | 29–35 | Rooftop | traversal/wind · lightning rods/strikes · skylights/flyers · signal fires/rescue · crane/hail cover · beacon/storm peak · calm/boss | The Storm Wraith |
+| 6 | 36–42 | Secret Laboratory | elevator/escape · lab notes/breach · keycards/adaptive enemies · revelations/mirror copies · reactor/meltdown escape · allies/nest assault · finale/multi-stage boss | The Night Manager |
+
+Full per-level names and teasers: `CampaignConfig.luau`.
+
+## 8. Limitations (honest)
+- **Levels 3–42** are configuration and planning only. Completing Level 2 shows "Level 3 coming in a future update", and the server then defaults to Free Shift.
+- **Chapter rewards, achievements and equipment unlocks** aren't built yet; level rewards are cash and XP. They're planned with Level 7 (first boss) and the progression pass.
+- Day/night **music** for blackout and level stingers are still placeholders (`AudioConfig`).
+- **Blackout zones** are by position: x ≥ 70 is the East Wing, y ≥ 18 is the upper level, everything else the atrium. Lights in unusual places may belong to the "wrong" zone.
+- Day 2 panel, lamp and depot positions were placed from the layout math, not in Studio. A prop clipping a wall or a planter is possible; report the spot.

@@ -27,6 +27,7 @@ python3 scripts/meshgen.py   # regenerate hero meshes → art/meshes/*.obj (impo
 | [docs/AUDIT.md](docs/AUDIT.md) | Full system audit, shop-shutter behavior, DataStore warning explained |
 | [docs/VISUAL_BENCHMARK.md](docs/VISUAL_BENCHMARK.md) | Visual audit, art spec, performance budgets, review checklist |
 | [docs/MONETIZATION.md](docs/MONETIZATION.md) | Store architecture, purchase guarantees, Studio test mode, go-live checklist |
+| [docs/CAMPAIGN.md](docs/CAMPAIGN.md) | Campaign framework, Level 1 vs 2, multiplayer rules, 42-level plan |
 
 ## Tuning
 Every gameplay number is in `src/shared/Config/`: phase lengths, economy, upgrades, enemies, waves, flashlight, collectibles, lighting looks, and the palette.

@@ -13,6 +13,7 @@ local LocalEvents = require(script.Parent.Parent.LocalEvents)
 local AudioController = require(script.Parent.AudioController)
 local Create = require(script.Parent.Parent.UI.Create)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local CampaignPanel = require(script.Parent.Parent.UI.Screens.CampaignPanel)
 local DevStorePanel = require(script.Parent.Parent.UI.Screens.DevStorePanel)
 local Hud = require(script.Parent.Parent.UI.Screens.Hud)
 local MainMenu = require(script.Parent.Parent.UI.Screens.MainMenu)
@@ -90,6 +91,9 @@ function UIController.Start()
 		OpenSettings = function()
 			toggleWindow("Settings")
 		end,
+		OpenCampaign = function()
+			toggleWindow("Campaign")
+		end,
 	})
 	local notifications = Notifications.new(root)
 	local close = function()
@@ -98,6 +102,7 @@ function UIController.Start()
 	windows.Shop = ShopPanel.new(root, close)
 	windows.Settings = SettingsPanel.new(root, close)
 	windows.Results = ResultsPanel.new(root, close)
+	windows.Campaign = CampaignPanel.new(root, close)
 	DevStorePanel.mount(root) -- Studio test mode only; no-op in live servers
 
 	MainMenu.new(root, function()
@@ -117,6 +122,45 @@ function UIController.Start()
 			setWindow(nil)
 			openWindow = "Results"
 			windows.Results:Show(data)
+		end)
+	end)
+
+	-- Level outcome at dawn: banner after the dawn banner, details as toasts.
+	Net.get("MissionResult").OnClientEvent:Connect(function(result)
+		task.delay(3, function()
+			local good = result.Outcome == "FirstClear" or result.Outcome == "Replay"
+			local subtitle = if good
+				then string.format("+%s · +%d XP", Format.cash(result.Cash or 0), result.XP or 0)
+				else result.Reason or ""
+			hud:ShowBanner(
+				result.Heading or "LEVEL RESULT",
+				subtitle,
+				if good then Theme.Colors.Green else Theme.Colors.Red
+			)
+			AudioController.Play(if good then "LevelUp" else "UIClick")
+			notifications:Push(result.Title .. ": " .. (result.Heading or ""), if good then "levelup" else "warning")
+			if result.Reason and good == false then
+				notifications:Push(result.Reason, "info")
+			end
+			local nextLevel = result.Next
+			if nextLevel then
+				notifications:Push(
+					if nextLevel.ComingSoon
+						then string.format(
+							"🔓 Next up: Level %d (%s / %s) is coming in a future update!",
+							nextLevel.Index,
+							nextLevel.Day,
+							nextLevel.Night
+						)
+						else string.format(
+							"🔓 Level %d unlocked: %s / %s!",
+							nextLevel.Index,
+							nextLevel.Day,
+							nextLevel.Night
+						),
+					"levelup"
+				)
+			end
 		end)
 	end)
 
@@ -159,6 +203,8 @@ function UIController.Start()
 		end
 		if input.KeyCode == Enum.KeyCode.B or input.KeyCode == Enum.KeyCode.ButtonY then
 			toggleWindow("Shop")
+		elseif input.KeyCode == Enum.KeyCode.M or input.KeyCode == Enum.KeyCode.ButtonSelect then
+			toggleWindow("Campaign")
 		elseif input.KeyCode == Enum.KeyCode.ButtonB and openWindow then
 			setWindow(nil)
 		end

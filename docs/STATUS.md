@@ -2,7 +2,18 @@
 
 _Last updated: 2026-10-27._
 
-## Current: Focused fixes (spiders, escalators, closed shops)
+## Current: Campaign foundation + Levels 1–2
+Static checks ✅ · unit tests 31/31 ✅ (14 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C).
+
+**Added:** `Campaign/CampaignConfig` (42 levels, 6 chapters), `Campaign/CampaignLogic`, `MissionService`, `Levels/PowerGrid`, `Util/MissionEvents`, `MissionClient`, `CampaignPanel`, Blackout lighting preset, `tests/Campaign.spec.luau`, `docs/CAMPAIGN.md`.
+**Changed:** `GameStateService` (level-driven phase lengths), `NightService` (rules per level: waves, breakers, blackout, guards, patrols), `EnemyService` (patrol, sight scale), `DataService` (schema v2, `Campaign`, Level 1 credit for veterans), `Shop/ProgressionService` (objective events), HUD (mission objectives, level titles), guide marker, prompts (carry-gated), lighting (zones, flicker), `UIController` (campaign window, key M, results).
+**Fixed in passing:** `CombatService.luau` had been corrupted outside this session (7 lines replaced by dots); restored from git with your OK.
+**Not built yet:** levels 3–42, chapter rewards, achievements, equipment unlocks (see `CAMPAIGN.md` §8).
+**Next (after your test):** Phase 3 = Levels 3–4 (Missing Delivery / Impostors, Security Upgrade / Mall Under Attack).
+
+---
+
+## Previous: Focused fixes (spiders, escalators, closed shops)
 Static checks ✅ · unit tests 17/17 ✅ · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §F).
 
 | Issue | Root cause | Change |
@@ -21,7 +32,7 @@ Difficulty curve (solo, from `EnemyConfig`):
 
 ---
 
-## Current: Monetization Phase 1 (secure foundation)
+## Previous: Monetization Phase 1 (secure foundation)
 | Item | State |
 |---|---|
 | Static checks (StyLua, selene, luau-lsp, Rojo build) | ✅ pass |

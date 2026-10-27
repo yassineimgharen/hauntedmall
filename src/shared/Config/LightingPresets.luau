@@ -76,6 +76,38 @@ local LightingPresets: { [string]: Preset } = {
 		Bloom = { Intensity = 0.85, Size = 28, Threshold = 1.1 },
 		SunRays = { Intensity = 0, Spread = 0.55 },
 	},
+
+	-- Blackout (Night 2): the mall's own lights are dead. Near-black but not pitch black, so
+	-- silhouettes still read; flashlights, emergency lamps, eyes and re-powered zones glow.
+	Blackout = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.25,
+			Ambient = rgb(16, 12, 30),
+			OutdoorAmbient = rgb(24, 18, 46),
+			ColorShift_Top = rgb(90, 90, 160),
+			ColorShift_Bottom = rgb(10, 4, 20),
+			EnvironmentDiffuseScale = 0.2,
+			EnvironmentSpecularScale = 0.6,
+			ExposureCompensation = 0,
+		},
+		Atmosphere = {
+			Density = 0.48,
+			Offset = 0.1,
+			Color = rgb(26, 18, 52),
+			Decay = rgb(8, 6, 20),
+			Glare = 0,
+			Haze = 2.6,
+		},
+		ColorCorrection = {
+			TintColor = rgb(196, 196, 236),
+			Saturation = -0.1,
+			Contrast = 0.3,
+			Brightness = -0.02,
+		},
+		Bloom = { Intensity = 1, Size = 24, Threshold = 0.9 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
 }
 
 return LightingPresets

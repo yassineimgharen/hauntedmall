@@ -1,5 +1,6 @@
--- Objective marker: one floating arrow over whatever the player should do next
--- (claim a shop, order stock, serve a waiting customer, repair a fuse at night).
+-- Objective marker: one floating arrow over whatever the player should do next. Campaign
+-- objectives with a Marker (e.g. "carry a fuse to a panel") come first; otherwise the
+-- classic shop loop (claim, stock, serve) and broken fuse boxes at night.
 -- Purely client-side guidance; it reads replicated attributes and never sends anything.
 
 local CollectionService = game:GetService("CollectionService")
@@ -7,6 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local MissionClient = require(script.Parent.Parent.MissionClient)
 local Create = require(script.Parent.Parent.UI.Create)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -33,14 +35,40 @@ local function nearest(parts: { BasePart }, from: Vector3): BasePart?
 	return best
 end
 
+local function openTagged(tag: string): { BasePart }
+	local parts = {}
+	for _, instance in CollectionService:GetTagged(tag) do
+		if instance:IsA("BasePart") and not instance:GetAttribute("Done") then
+			table.insert(parts, instance)
+		end
+	end
+	return parts
+end
+
+local function missionTarget(from: Vector3): (BasePart?, string?, Color3?)
+	local row = MissionClient.focusRow()
+	local marker = row and row.Marker
+	if not marker then
+		return nil
+	end
+	if marker.Carry and player:GetAttribute("Carrying") ~= marker.Carry then
+		return nearest(openTagged(marker.Pickup), from), marker.PickupLabel, Theme.Colors.Gold
+	end
+	return nearest(openTagged(marker.Tag), from), marker.Label, Theme.Colors.Cyan
+end
+
 -- Returns the part to point at and the label, or nil when nothing needs doing.
 local function currentTarget(from: Vector3): (BasePart?, string?, Color3?)
 	local phase = ReplicatedStorage:GetAttribute("Phase")
+	local missionPart, missionText, missionColor = missionTarget(from)
+	if missionPart then
+		return missionPart, missionText, missionColor
+	end
 	if phase == "Night" then
 		local broken = {}
 		for _, fuse in CollectionService:GetTagged("FuseBox") do
 			local box = fuse:FindFirstChild("Box") :: BasePart?
-			if box and not fuse:GetAttribute("Repaired") then
+			if box and fuse:GetAttribute("Broken") then
 				table.insert(broken, box)
 			end
 		end

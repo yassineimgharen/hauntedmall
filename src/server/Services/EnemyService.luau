@@ -45,6 +45,15 @@ export type Enemy = {
 	Computing: boolean,
 	LastPosition: Vector3,
 	LastProgressAt: number,
+	Patrols: boolean, -- walks a patrol route instead of hunting shops when no one is in sight
+	PatrolTarget: Vector3?,
+}
+
+-- Night-specific behaviour, set by NightService from the level's rules.
+export type Behavior = {
+	PatrolPoints: { Vector3 }?, -- if set, some enemies patrol these points
+	PatrolShare: number, -- fraction of new spawns that patrol
+	SightScale: number, -- multiplies AggroRange (e.g. 0.75 in a blackout)
 }
 
 local EnemyService = {}
@@ -55,6 +64,8 @@ local BUILDERS = {
 }
 
 local enemies: { Enemy } = {}
+local DEFAULT_BEHAVIOR: Behavior = { PatrolPoints = nil, PatrolShare = 0, SightScale = 1 }
+local behavior: Behavior = DEFAULT_BEHAVIOR
 local folder: Folder
 local rayParams = CollisionGroups.worldRaycastParams()
 local rng = Random.new()
@@ -238,7 +249,7 @@ local function think(enemy: Enemy, now: number)
 		humanoid.Jump = true
 	end
 
-	local player, root, distance = nearestPlayer(position, config.AggroRange, true)
+	local player, root, distance = nearestPlayer(position, config.AggroRange * behavior.SightScale, true)
 	if player and root then
 		enemy.LastProgressAt = if distance <= config.AttackRange then now else enemy.LastProgressAt
 		if distance <= config.AttackRange then
@@ -248,6 +259,17 @@ local function think(enemy: Enemy, now: number)
 		else
 			navigate(enemy, root.Position)
 		end
+		return
+	end
+
+	local patrol = behavior.PatrolPoints
+	if enemy.Patrols and patrol and #patrol > 0 then
+		local goal = enemy.PatrolTarget
+		if not goal or flatDistance(position, goal) < 6 then
+			goal = patrol[rng:NextInteger(1, #patrol)]
+			enemy.PatrolTarget = goal
+		end
+		navigate(enemy, goal :: Vector3)
 		return
 	end
 
@@ -346,6 +368,8 @@ function EnemyService.Spawn(typeId: string, position: Vector3, night: number?): 
 		Computing = false,
 		LastPosition = root.Position,
 		LastProgressAt = now,
+		Patrols = behavior.PatrolPoints ~= nil and rng:NextNumber() < behavior.PatrolShare,
+		PatrolTarget = nil,
 	}
 	table.insert(enemies, enemy)
 	workspace:SetAttribute("EnemiesAlive", #enemies)
@@ -381,6 +405,11 @@ function EnemyService.ClearAll()
 	for _, enemy in table.clone(enemies) do
 		remove(enemy)
 	end
+end
+
+-- nil restores the default (hunt players, raid shops, full sight).
+function EnemyService.SetBehavior(newBehavior: Behavior?)
+	behavior = newBehavior or DEFAULT_BEHAVIOR
 end
 
 function EnemyService.GetAll(): { Enemy }

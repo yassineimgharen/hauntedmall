@@ -16,10 +16,13 @@ local RELIABLE = {
 	"SetBeam",
 	"SaveSettings",
 	"RequestPurchase",
+	"VoteLevel",
 	-- server → client
 	"Notify",
 	"NightResults",
 	"Effect",
+	"MissionState",
+	"MissionResult",
 }
 
 local UNRELIABLE = {

@@ -1,6 +1,7 @@
 -- Shows each shop prompt only to the players it applies to (claim → players without a
 -- shop, restock/serve → the owner). Purely cosmetic: the server re-checks everything.
--- Also answers "What's this?" info prompts (closed storefronts) locally, with no server call.
+-- Also answers "What's this?" info prompts (closed storefronts) locally, with no server call,
+-- and shows mission "CarryPrompt"s only while you carry the item they need.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -39,7 +40,35 @@ local function bindInfo(prompt: Instance)
 	end
 end
 
+local carryPrompts: { [ProximityPrompt]: boolean } = {}
+
+local function refreshCarry()
+	local carrying = player:GetAttribute("Carrying")
+	for prompt in carryPrompts do
+		prompt.Enabled = carrying ~= nil
+			and prompt:GetAttribute("RequiresCarry") == carrying
+			and not prompt:GetAttribute("Done")
+	end
+end
+
+local function bindCarry(prompt: Instance)
+	if prompt:IsA("ProximityPrompt") then
+		carryPrompts[prompt] = true
+		prompt:GetAttributeChangedSignal("Done"):Connect(refreshCarry)
+		refreshCarry()
+	end
+end
+
 function PromptController.Start()
+	for _, prompt in CollectionService:GetTagged("CarryPrompt") do
+		bindCarry(prompt)
+	end
+	CollectionService:GetInstanceAddedSignal("CarryPrompt"):Connect(bindCarry)
+	CollectionService:GetInstanceRemovedSignal("CarryPrompt"):Connect(function(prompt)
+		carryPrompts[prompt :: ProximityPrompt] = nil
+	end)
+	player:GetAttributeChangedSignal("Carrying"):Connect(refreshCarry)
+
 	for _, prompt in CollectionService:GetTagged("InfoPrompt") do
 		bindInfo(prompt)
 	end
