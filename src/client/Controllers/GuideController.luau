@@ -58,6 +58,17 @@ local function missionTarget(from: Vector3): (BasePart?, string?, Color3?)
 	if not marker or (marker.Own == "Shop" and player:GetAttribute("ShopId") == nil) then
 		return nil -- e.g. "barricade your shop" without a shop: the claim marker takes over
 	end
+	local steps = (marker :: any).Steps
+	if type(steps) == "table" then
+		-- a chain (cook → lace → serve): the step matching what you carry ("None" = nothing)
+		local carrying = player:GetAttribute("Carrying") or "None"
+		for _, step in steps do
+			if step.Carry == carrying then
+				return nearest(openTagged(step.Tag), from), step.Label, Theme.Colors.Cyan
+			end
+		end
+		return nil
+	end
 	if marker.Carry and player:GetAttribute("Carrying") ~= marker.Carry then
 		return nearest(openTagged(marker.Pickup), from), marker.PickupLabel, Theme.Colors.Gold
 	end

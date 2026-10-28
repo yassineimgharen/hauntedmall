@@ -28,6 +28,8 @@
 --   CleanEscape (HiddenFreezer)
 --   AnomalyFound RouteChalked SealCollected MazeEscaped QuickEscape (ShiftingMaze)
 --   VentFanRepaired AirflowBalanced ZonePurged Choked CleanAir BloaterPopped (Ventilation)
+--   SampleCollected AntidoteBrewed InfectionSourceFound DishServed LacedDishServed ChefDefeated
+--   (GorgingChef)
 
 local CampaignConfig = {}
 
@@ -116,6 +118,12 @@ CampaignConfig.Events = {
 	Choked = true,
 	CleanAir = true,
 	BloaterPopped = true,
+	SampleCollected = true,
+	AntidoteBrewed = true,
+	InfectionSourceFound = true,
+	DishServed = true,
+	LacedDishServed = true,
+	ChefDefeated = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -1310,7 +1318,103 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(14, "The Chef's Warning", "Prepare the kitchen arena.", "The Gorging Chef", "Chapter 2 boss."),
+	{
+		Id = "L14",
+		Index = 14,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1600, XP = 1800 },
+		-- Finishing Chapter 2 (first clear only).
+		ChapterReward = { Cash = 2000, XP = 2000, Title = "Head Chef of the Night" },
+		Modules = { "GorgingChef" },
+		Day = {
+			Name = "Patient Zero",
+			Teaser = "Sample the infected growths, brew an antidote, follow the veins to the source.",
+			Story = "The infection is spreading from somewhere in the food court. Find out where, and brew something that can fight it.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "samples",
+					Text = "Collect infection samples",
+					Event = "SampleCollected",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Growths spit when a green circle appears: sample them (hold E) between spits.",
+					Marker = { Tag = "InfectedGrowth", Label = "🧫 TAKE SAMPLE" },
+				},
+				{
+					Id = "antidote",
+					Text = "Brew the antidote",
+					Event = "AntidoteBrewed",
+					Scope = "Team",
+					Hint = "Slice of Night's kitchen (south row): Chop, then Boil, then Bottle (hold E at each, in order).",
+					Marker = { Tag = "BrewStation", Label = "🧪 BREW" },
+				},
+				{
+					Id = "source",
+					Text = "Find the source of the infection",
+					Event = "InfectionSourceFound",
+					Scope = "Team",
+					Hint = "Follow the glowing veins to the sealed grand kitchen doors. Hold E to peek inside.",
+					Marker = { Tag = "KitchenSeal", Label = "👁️ PEEK INSIDE" },
+				},
+				{
+					Id = "mysamples",
+					Text = "Collect 2 samples yourself",
+					Event = "SampleCollected",
+					Target = 2,
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "The Gorging Chef",
+			Teaser = "Chapter 2 boss: feed him antidote-laced dishes to make him sick, then burn him.",
+			Story = "The Gorging Chef is awake and starving. Cook, lace, serve, and burn him while he's sick!",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "chef",
+					Text = "Defeat the Gorging Chef",
+					Event = "ChefDefeated",
+					Scope = "Team",
+					Hint = "Cook at a stove 🍳, lace at a green vat 🧪, serve on the pass 🍽️ before ORDER UP. When he's SICK, burn his belly!",
+					Marker = {
+						Steps = {
+							{ Carry = "None", Tag = "ChefStove", Label = "🍳 COOK A DISH" },
+							{ Carry = "Dish", Tag = "ChefVat", Label = "🧪 LACE IT" },
+							{ Carry = "LacedDish", Tag = "ChefPass", Label = "🍽️ SERVE IT" },
+						},
+					},
+				},
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{
+					Id = "feeder",
+					Text = "Serve him 2 laced dishes",
+					Event = "LacedDishServed",
+					Target = 2,
+					Optional = true,
+				},
+				{
+					Id = "flawless",
+					Text = "Team: nobody knocked down",
+					Kind = "Avoid",
+					Event = "Downed",
+					Scope = "Team",
+					Optional = true,
+				},
+			},
+			Rules = {
+				Tier = 5,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Chef",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "👨‍🍳 THE GORGING CHEF IS AWAKE. Feed him a laced dish, then burn him!",
+			},
+		},
+	},
 	-- ── Chapter 3: Underground Parking ──────────────────────────────────────
 	planned(
 		15,

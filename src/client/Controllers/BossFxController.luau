@@ -19,9 +19,15 @@ local rng = Random.new()
 local highlight: Highlight? = nil
 local flashToken = 0
 
+-- The boss on screen: the Shadow Queen (Level 7) or the Gorging Chef (Level 14).
 local function queenModel(): Model?
 	local arena = workspace:FindFirstChild("QueenArena")
-	return arena and arena:FindFirstChild("ShadowQueen") :: Model?
+	local queen = arena and arena:FindFirstChild("ShadowQueen")
+	if queen then
+		return queen :: Model
+	end
+	local kitchen = workspace:FindFirstChild("ChefArena")
+	return kitchen and kitchen:FindFirstChild("GorgingChef") :: Model?
 end
 
 local function hitFlash(strength: number)
@@ -121,7 +127,7 @@ function BossFxController.Start()
 				floatingText(payload.Position, "-" .. amount, Theme.Colors.Gold, if amount >= 15 then 30 else 24)
 			end
 		elseif kind == "BossBlocked" and typeof(payload.Position) == "Vector3" then
-			floatingText(payload.Position, "🛡️ BLOCKED", Theme.Colors.Purple, 22)
+			floatingText(payload.Position, tostring(payload.Text or "🛡️ BLOCKED"), Theme.Colors.Purple, 22)
 		elseif kind == "Shake" then
 			shake(
 				if typeof(payload.Position) == "Vector3" then payload.Position else nil,

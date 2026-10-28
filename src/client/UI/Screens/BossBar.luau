@@ -2,6 +2,8 @@
 -- mirrors server attributes (BossHP/MaxHP/Phase, BossShield = Shielded | Down | Returning |
 -- Defeated, BossShieldUntil, BossDarkness/BossDarkUntil, BossCannonsReady), so the text
 -- always matches what the server will actually allow.
+-- BossKind = "Chef" (Level 14): BossShield = Greased | Sick | Ravenous | Defeated, plus
+-- BossHungerAt (next ORDER UP) and BossPass (Empty | Dish | Laced).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -22,6 +24,27 @@ end
 
 local function secondsLeft(name: string): number
 	return math.max(0, math.ceil((attr(name) or 0) - workspace:GetServerTimeNow()))
+end
+
+-- The Gorging Chef's status lines: what he is, and what the team should do right now.
+function BossBar.chefStatus(state: string, hp: number): (string, Color3, string)
+	if hp <= 0 or state == "Defeated" then
+		return "👨‍🍳 DEFEATED!", C.Gold, "Dawn is coming: Chapter 2 complete!"
+	elseif state == "Sick" then
+		return string.format("🤢 SICK! BURN HIM NOW! (%ds)", secondsLeft("BossShieldUntil")),
+			C.Green,
+			"Hold your flashlight on his glowing belly!"
+	elseif state == "Ravenous" then
+		return string.format("😡 RAVENOUS! RUN! (%ds)", secondsLeft("BossShieldUntil")),
+			C.Red,
+			"Keep away, then get a LACED dish ready for the next order."
+	end
+	local pass = attr("BossPass")
+	local passText = if pass == "Laced"
+		then "Pass: 🧪 LACED DISH READY ✓"
+		elseif pass == "Dish" then "Pass: ⚠️ PLAIN DISH (it will heal him!)"
+		else "Pass: EMPTY. Cook 🍳 → lace 🧪 → serve 🍽️"
+	return string.format("🧈 GREASED · ORDER UP IN %ds", secondsLeft("BossHungerAt")), C.Gold, passText
 end
 
 function BossBar.mount(root: Frame)
@@ -114,6 +137,9 @@ function BossBar.mount(root: Frame)
 		setHealth(hp / maxHp, false)
 		hpText.Text = string.format("%d / %d", hp, maxHp)
 		local barColor = if state == "Shielded" then C.Purple else C.Pink
+		if attr("BossKind") == "Chef" then
+			barColor = if state == "Sick" then C.Green else C.Gold
+		end
 		if lastHp and hp < lastHp then
 			-- the bar blinks white on every hit so damage is impossible to miss
 			fill.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -125,7 +151,9 @@ function BossBar.mount(root: Frame)
 		lastHp = hp
 
 		local text, color, hintText
-		if hp <= 0 or state == "Defeated" then
+		if attr("BossKind") == "Chef" then
+			text, color, hintText = BossBar.chefStatus(state, hp)
+		elseif hp <= 0 or state == "Defeated" then
 			text, color, hintText = "👑 DEFEATED!", C.Gold, "Dawn is coming: Chapter 1 complete!"
 		elseif state == "Down" then
 			text = string.format("⚡ ATTACK NOW! SHIELD DOWN! (%ds)", secondsLeft("BossShieldUntil"))
@@ -163,6 +191,9 @@ function BossBar.mount(root: Frame)
 			"BossName",
 			"BossDarkness",
 			"BossCannonsReady",
+			"BossKind",
+			"BossHungerAt",
+			"BossPass",
 		}
 	do
 		ReplicatedStorage:GetAttributeChangedSignal(attribute):Connect(render)

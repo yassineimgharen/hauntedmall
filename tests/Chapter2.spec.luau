@@ -12,6 +12,7 @@ local CampaignConfig = require("../src/shared/Campaign/CampaignConfig")
 local Logic = require("../src/shared/Campaign/CampaignLogic")
 local EnemyConfig = require("../src/shared/Config/EnemyConfig")
 local MonsterTuning = require("../src/shared/Config/MonsterTuning")
+local Chef = require("../src/server/Levels/ChefLogic")
 local Rules = require("../src/server/Levels/FoodCourtRules")
 
 local passed, failed = 0, 0
@@ -612,6 +613,174 @@ end)
 
 test("L13 module records every event its objectives need", function()
 	recordsAll(L13, "src/server/Levels/Ventilation.luau")
+end)
+
+print("Level 14 · Patient Zero / The Gorging Chef")
+
+local L14 = CampaignConfig.ById.L14
+local R14 = Rules.L14
+local CT = Chef.Tuning
+
+test("L14 day: samples, the antidote and finding the source clear it", function()
+	assert(
+		play(L14.Day, { { "SampleCollected", 4 }, { "AntidoteBrewed", 1 }, { "InfectionSourceFound", 1 } }),
+		"cleared"
+	)
+	assert(not play(L14.Day, { { "SampleCollected", 4 }, { "AntidoteBrewed", 1 } }), "source not found")
+	assert(R14.Growths > R14.SampleTarget, "a spare growth")
+end)
+
+test("L14 growths: the calm window fits a sample; the spit is announced", function()
+	local calm = R14.SpitEvery - R14.SpitWarn - R14.SpitRecover
+	assert(calm >= R14.SampleSeconds + 1, string.format("%.1fs calm for a %.1fs sample", calm, R14.SampleSeconds))
+	eq((Rules.growthPhase(0.1, 0)), "Spitting", "just spat")
+	eq((Rules.growthPhase(R14.SpitRecover + 0.1, 0)), "Calm", "then calm")
+	eq((Rules.growthPhase(R14.SpitEvery - 0.5, 0)), "Warning", "then the warning circle")
+	assert((R14.SpitRadius + 1) / MonsterTuning.PlayerSpeed < R14.SpitWarn, "the circle can be left in time")
+end)
+
+test("L14 brewing goes Chop, Boil, Bottle in order", function()
+	eq(Rules.nextBrewStep(0), "Chop", "first")
+	eq(Rules.nextBrewStep(1), "Boil", "second")
+	eq(Rules.nextBrewStep(2), "Bottle", "third")
+	eq(Rules.nextBrewStep(3), nil, "done")
+end)
+
+test("L14 night: defeating him is the team's; serving laced dishes earns the bonus", function()
+	assert(play(L14.Night, { { "ChefDefeated", 1 } }), "cleared")
+	local tracker = Logic.newTracker(L14.Night.Objectives)
+	Logic.record(tracker, "A", "LacedDishServed")
+	Logic.record(tracker, "A", "LacedDishServed")
+	assert(table.find(Logic.optionalDone(tracker, "A"), "feeder"), "bonus")
+	local source = fs.readFile("src/server/Levels/GorgingChef.luau")
+	assert(source:find('MissionEvents.record(nil, "ChefDefeated")', 1, true), "victory is a team event")
+end)
+
+test("chef: greased until a laced meal; plain dishes heal; an empty pass enrages", function()
+	local f = Chef.new(1, 0)
+	eq(f.State, "Greased", "starts greased")
+	local blocked = Chef.applyLight(f, 1, 50)
+	assert(blocked.Blocked and blocked.Dealt == 0, "light blocked")
+	assert(Chef.serve(f, "Laced"), "serve")
+	local ok, reason = Chef.serve(f, "Dish")
+	assert(not ok and reason == "Full", "one dish at a time")
+	eq(Chef.eat(f, 30), "Sick", "laced → sick")
+	eq(f.Pass, "Empty", "plate cleared")
+	assert(Chef.isVulnerable(f, 30 + CT.SickSeconds - 0.1), "vulnerable for SickSeconds")
+	local hit = Chef.applyLight(f, 31, 50)
+	eq(hit.Dealt, 50, "light hurts")
+	eq(Chef.update(f, 30 + CT.SickSeconds), "Sick", "wears off")
+	eq(f.State, "Greased", "greased again")
+	f.Hp -= 100
+	local before = f.Hp
+	Chef.serve(f, "Dish")
+	eq(Chef.eat(f, 100), "Healed", "plain dish")
+	assert(f.Hp > before, "it healed him")
+	eq(Chef.eat(f, 200), "Ravenous", "empty pass")
+	eq(Chef.attackGap(f), CT.AttackGap[1] * CT.RavenousGapScale, "attacks faster")
+	assert(Chef.speed(f) < MonsterTuning.PlayerSpeed, "still slower than you")
+	eq(Chef.attackGap({ Defeated = false, State = "Sick", Phase = 1 } :: any), nil, "no attacks while sick")
+end)
+
+test("chef: phases at 66% and 33%; victory reported once", function()
+	local f = Chef.new(1, 0)
+	Chef.serve(f, "Laced")
+	Chef.eat(f, 0)
+	local r1 = Chef.applyLight(f, 1, f.MaxHp * 0.35)
+	eq(r1.PhaseChanged, 2, "phase 2")
+	local r2 = Chef.applyLight(f, 2, f.MaxHp * 0.35)
+	eq(r2.PhaseChanged, 3, "phase 3")
+	local r3 = Chef.applyLight(f, 3, f.MaxHp)
+	assert(r3.Defeated and f.State == "Defeated", "defeated")
+	local r4 = Chef.applyLight(f, 4, 10)
+	assert(not r4.Defeated and r4.Dealt == 0, "only once")
+	local ok = Chef.serve(f, "Laced")
+	assert(not ok, "no serving after victory")
+end)
+
+test("chef balance: HP scales; meatballs only from phase 2 and capped", function()
+	eq(Chef.maxHp(1), CT.BaseHP + CT.HPPerPlayer, "solo")
+	eq(Chef.maxHp(4), CT.BaseHP + CT.HPPerPlayer * 4, "team")
+	eq(Chef.meatballCap(1, 4), 0, "none in phase 1")
+	eq(Chef.meatballCap(2, 1), 2, "solo phase 2")
+	eq(Chef.meatballCap(3, 1), 3, "solo phase 3")
+	eq(Chef.meatballCap(3, 10), CT.MaxMeatballs, "cap")
+	assert(EnemyConfig.Scaled("Meatball", CT.MeatballTier[3]).WalkSpeed < MonsterTuning.PlayerSpeed, "meatballs are slower")
+end)
+
+test("chef fairness: every attack is telegraphed long enough to dodge", function()
+	for phase = 1, 3 do
+		local warn = CT.Cleaver.Warn[phase]
+		assert((CT.Cleaver.Width / 2 + 1) / MonsterTuning.PlayerSpeed < warn * 0.5, "cleaver lane phase " .. phase)
+	end
+	assert((CT.Pan.Radius + 1) / MonsterTuning.PlayerSpeed < CT.Pan.Warn * 0.5, "pan circle")
+	assert((CT.Flare.Width / 2 + 1) / MonsterTuning.PlayerSpeed < CT.Flare.Warn * 0.5, "stove flare")
+	assert(CT.FirstHunger >= CT.CookSeconds + CT.LaceSeconds + CT.ServeSeconds + 12, "time to prepare the first dish")
+	assert(CT.Grease.Slow >= 0.5, "grease slows, never roots")
+end)
+
+-- A whole fight: the team cooks a laced dish for every ORDER UP with probability `prep`,
+-- and keeps `accuracy` of its beams on him while he's sick (battery limited).
+local function simulateKill(players: number, accuracy: number, prep: number): number
+	local f = Chef.new(players, CT.IntroSeconds)
+	local battery = EnemyConfig.Flashlight
+	local charge = {}
+	for i = 1, players do
+		charge[i] = battery.BatterySeconds
+	end
+	local seed = 3
+	local function roll()
+		seed = (seed * 1103515245 + 12345) % 2147483648
+		return seed / 2147483648
+	end
+	local t, dt = 0, 0.1
+	while t < 240 and not f.Defeated do
+		t += dt
+		Chef.update(f, t)
+		if Chef.isHungry(f, t) then
+			if roll() < prep then
+				Chef.serve(f, "Laced")
+			end
+			Chef.eat(f, t)
+		end
+		for i = 1, players do
+			if Chef.isVulnerable(f, t) and charge[i] > 0 then
+				charge[i] -= dt
+				Chef.applyLight(f, t, Chef.lightDamage(battery.DPS, dt, 0, false) * accuracy)
+			else
+				charge[i] = math.min(battery.BatterySeconds, charge[i] + battery.BatterySeconds * battery.RechargePerSecond * dt)
+			end
+		end
+	end
+	return if f.Defeated then t else math.huge
+end
+
+test("chef: a solo player wins well before dawn; teams do too", function()
+	local solo = simulateKill(1, 0.7, 0.8)
+	assert(solo < L14.Night.Duration * 0.6, string.format("solo kill at %.0fs", solo))
+	local team = simulateKill(4, 0.6, 0.9)
+	assert(team < L14.Night.Duration - 60, string.format("team of 4 at %.0fs", team))
+	print(string.format("      (simulated: solo %.0fs, team of 4 %.0fs of a %ds night)", solo, team, L14.Night.Duration))
+end)
+
+test("Chapter 2 reward is paid once; Food Court Hero follows", function()
+	local campaign = { Completed = {}, DayCleared = {}, OptionalDone = {}, Chapters = { ["1"] = 1 }, Achievements = {} }
+	local reward = Logic.claimChapter(campaign, L14, 100)
+	assert(reward, "first clear pays")
+	eq(reward.Title, "Head Chef of the Night", "title")
+	eq(Logic.claimChapter(campaign, L14, 200), nil, "second clear: nothing")
+	local stored = serde.decode("json", serde.encode("json", campaign))
+	eq(Logic.claimChapter(stored, L14, 300), nil, "after save/load: nothing")
+	local earned = Logic.unlockAchievements(stored, AchievementConfig.List, 400)
+	local ids = {}
+	for _, a in earned do
+		ids[a.Id] = true
+	end
+	assert(ids.FoodCourtHero and ids.QueenSlayer, "both chapter achievements")
+end)
+
+test("L14 module records every event its objectives need", function()
+	recordsAll(L14, "src/server/Levels/GorgingChef.luau")
 end)
 
 print("Rewards, achievements and saves")

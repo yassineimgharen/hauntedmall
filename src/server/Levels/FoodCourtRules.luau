@@ -646,4 +646,40 @@ function FoodCourtRules.bloaterCap(playerCount: number): number
 	return math.min(1 + players(playerCount), 6)
 end
 
+-- ── Level 14 (day) · Patient Zero ───────────────────────────────────────────
+-- The boss night's rules live in ChefLogic.
+
+FoodCourtRules.L14 = {
+	Growths = 5, -- infected growths to sample, 4 needed
+	SampleTarget = 4,
+	SampleSeconds = 2,
+	SpitEvery = 6, -- each growth spits on this cycle...
+	SpitWarn = 1, -- ...after a circle warns this long...
+	SpitRecover = 0.8, -- ...and can't be sampled from the warning until this long after
+	SpitRadius = 7,
+	SpitDamage = 10,
+	BrewSteps = { "Chop", "Boil", "Bottle" },
+	BrewSeconds = { Chop = 2, Boil = 3, Bottle = 1.5 },
+	PeekSeconds = 2,
+}
+
+-- A growth at clock time t (its cycle offset): "Calm" (sample it), "Warning" (it's about
+-- to spit) or "Spitting", and seconds until that changes.
+function FoodCourtRules.growthPhase(t: number, offset: number): (string, number)
+	local r = FoodCourtRules.L14
+	local at = (t + offset) % r.SpitEvery
+	local warnAt = r.SpitEvery - r.SpitWarn
+	if at < r.SpitRecover then
+		return "Spitting", r.SpitRecover - at
+	elseif at < warnAt then
+		return "Calm", warnAt - at
+	end
+	return "Warning", r.SpitEvery - at
+end
+
+-- The next brewing step, or nil when the antidote is done. `done` = steps finished so far.
+function FoodCourtRules.nextBrewStep(done: number): string?
+	return FoodCourtRules.L14.BrewSteps[done + 1]
+end
+
 return FoodCourtRules

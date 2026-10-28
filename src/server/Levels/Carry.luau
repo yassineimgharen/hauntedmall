@@ -27,6 +27,16 @@ local LOOKS: { [string]: { Size: Vector3, Color: Color3, Material: Enum.Material
 		Color = Color3.fromRGB(230, 40, 40),
 		Material = Enum.Material.SmoothPlastic,
 	},
+	Dish = {
+		Size = Vector3.new(1.8, 0.5, 1.8),
+		Color = Color3.fromRGB(240, 150, 60),
+		Material = Enum.Material.SmoothPlastic,
+	},
+	LacedDish = {
+		Size = Vector3.new(1.8, 0.5, 1.8),
+		Color = Color3.fromRGB(120, 255, 90),
+		Material = Enum.Material.Neon,
+	},
 	Mop = { Size = Vector3.new(0.35, 3.4, 0.35), Color = Color3.fromRGB(240, 196, 40), Material = Enum.Material.Fabric },
 	Floodlight = {
 		Size = Vector3.new(1.4, 1.2, 1.4),

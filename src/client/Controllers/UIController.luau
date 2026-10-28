@@ -273,7 +273,11 @@ function UIController.Start()
 		elseif kind == "DarkWarn" then
 			hud:Popup("🌑 DARKNESS INCOMING", Theme.Colors.Purple, UDim2.fromScale(0.5, 0.46))
 		elseif kind == "BossBlocked" then
-			hud:Popup("🛡️ SHIELDED: fire a cannon first", Theme.Colors.Purple, UDim2.fromScale(0.5, 0.6))
+			hud:Popup(
+				tostring(payload.Hint or "🛡️ SHIELDED: fire a cannon first"),
+				Theme.Colors.Purple,
+				UDim2.fromScale(0.5, 0.6)
+			)
 		elseif kind == "PhantomUnmasked" then
 			if typeof(payload.Position) == "Vector3" then
 				hud:WorldPopup(payload.Position, "👻 UNMASKED!", Theme.Colors.Cyan)
