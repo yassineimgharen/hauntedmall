@@ -184,6 +184,34 @@ local function face(enemy: Enemy, point: Vector3)
 end
 
 local lastHitAt: { [Player]: number } = {}
+local spawnedAt: { [Player]: number } = {}
+
+-- The one way monsters (and bosses) hurt players. Nothing lands within PlayerHitGrace of
+-- the last hit (swarm protection) or RespawnGrace of spawning. `from` aims the knockback.
+-- Returns whether the hit landed.
+function EnemyService.HitPlayer(player: Player, damage: number, from: Vector3): boolean
+	local root = livingRoot(player)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid then
+		return false
+	end
+	local now = os.clock()
+	local combat = EnemyConfig.Combat
+	if
+		now - (lastHitAt[player] or 0) < combat.PlayerHitGrace
+		or now - (spawnedAt[player] or 0) < combat.RespawnGrace
+	then
+		return false
+	end
+	lastHitAt[player] = now
+	humanoid:TakeDamage(damage)
+	local flat = Vector3.new(root.Position.X - from.X, 0, root.Position.Z - from.Z)
+	Notify.effect(player, "Hit", {
+		Damage = damage,
+		Direction = if flat.Magnitude > 0.01 then flat.Unit else nil,
+	})
+	return true
+end
 
 -- The bite lands only if the target is still in reach after the wind-up (dodgeable), and
 -- only if that player hasn't just been hit by anything (swarm protection).
@@ -193,25 +221,13 @@ local function resolveBite(enemy: Enemy, player: Player)
 	end
 	enemy.Model:SetAttribute("AttackAt", serverNow())
 	local root = livingRoot(player)
-	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if not root or not humanoid then
+	if not root then
 		return
 	end
-	local offset = root.Position - enemy.Root.Position
-	if offset.Magnitude > enemy.Config.AttackRange + EnemyConfig.Combat.DodgeMargin then
+	if (root.Position - enemy.Root.Position).Magnitude > enemy.Config.AttackRange + EnemyConfig.Combat.DodgeMargin then
 		return -- dodged
 	end
-	local now = os.clock()
-	if now - (lastHitAt[player] or 0) < EnemyConfig.Combat.PlayerHitGrace then
-		return
-	end
-	lastHitAt[player] = now
-	humanoid:TakeDamage(enemy.Config.Damage)
-	local flat = Vector3.new(offset.X, 0, offset.Z)
-	Notify.effect(player, "Hit", {
-		Damage = enemy.Config.Damage,
-		Direction = if flat.Magnitude > 0.01 then flat.Unit else nil,
-	})
+	EnemyService.HitPlayer(player, enemy.Config.Damage, enemy.Root.Position)
 end
 
 -- Telegraphed attack: stop, rear up (clients see WindupAt), warn the target, then bite.
@@ -456,6 +472,18 @@ function EnemyService.StunAll(seconds: number)
 	end
 end
 
+function EnemyService.Stun(enemy: Enemy, seconds: number)
+	if enemy.Dead then
+		return
+	end
+	local untilClock = os.clock() + seconds
+	if untilClock > enemy.StunnedUntil then
+		enemy.StunnedUntil = untilClock
+		enemy.Humanoid:MoveTo(enemy.Root.Position)
+		enemy.Model:SetAttribute("StunnedUntil", serverNow() + seconds)
+	end
+end
+
 function EnemyService.ClearAll()
 	for _, enemy in table.clone(enemies) do
 		remove(enemy)
@@ -497,8 +525,18 @@ function EnemyService.Init()
 end
 
 function EnemyService.Start()
+	local function watchSpawns(player: Player)
+		player.CharacterAdded:Connect(function()
+			spawnedAt[player] = os.clock()
+		end)
+	end
+	Players.PlayerAdded:Connect(watchSpawns)
+	for _, player in Players:GetPlayers() do
+		watchSpawns(player)
+	end
 	Players.PlayerRemoving:Connect(function(player)
 		lastHitAt[player] = nil
+		spawnedAt[player] = nil
 	end)
 	RunService.Heartbeat:Connect(function()
 		local now = os.clock()

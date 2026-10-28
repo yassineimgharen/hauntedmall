@@ -44,6 +44,7 @@ All dimensions in studs (1 stud ≈ 28 cm). The pivot doesn't matter (base is au
 | B | `GlassDome` | Dome with bevelled steel ribs | ≤ 8k | none (built-in Glass/Metal) | Ø 92 × 45 | already hooked |
 | C | Escalator shell | Balustrades, truss | ≤ 4k | 1024² | 7.4 × 24 × 42 | treads stay animated parts |
 | C | Food court and arcade kits | Phase 4 areas | per prop ≤ 3k | trim sheets | — | new area builders |
+| A | `ShadowQueen` | Level 7 boss: crowned spider-queen, veil-wings, banded abdomen (the current one is procedural parts built in `ShadowQueen.buildQueen`) | ≤ 15k tris, rigged (legs, mandibles, wings) | 2048² (body, emissive eyes/crown) | about 20 L × 12 H × 18 W | not hooked yet: the code must keep the 3 invisible `Weakpoint*` spheres (`QueenLogic.Body`), `ShieldBubble` and the `Eye`/`EyeGlow` names; swap the visual parts only |
 | C | Night Stalker, Phantom Shopper, Security Nightmare, Mall Warden | Roster | ≤ 8k each (boss ≤ 15k) | 1024²–2048² | — | `src/server/Enemies/` |
 
 **Textures to upgrade the built-in materials** (MaterialVariant, uploaded via the Material Manager): Marble (colour + normal + roughness, 1024², tiling 8 studs), WoodPlanks (walnut, 1024²), DiamondPlate (escalator treads). Use CC0 sources (ambientCG, Poly Haven) and log each in a `LICENSES.md`.
@@ -54,6 +55,7 @@ All dimensions in studs (1 stud ≈ 28 cm). The pivot doesn't matter (base is au
 | Asset | Clips | Status | Tool |
 |---|---|---|---|
 | Shadow Crawler | idle, skitter, lunge, stun, emerge, dissolve | **procedural, done** (client Motor6D) | Animation Editor later, for nuance |
+| Shadow Queen | hover-bob, rear-up (slam windup), slam drop, hit recoil, phase roar, death shudder/sink | **procedural, done** (server root CFrame; one anchored assembly) | a rigged mesh with Animator clips (leg crawl, wing flutter) would add a lot |
 | Customers | walk, idle | Roblox default clips | — |
 | Customers | browse, pay, cheer, flee | missing | Animation Editor (R15) |
 | Player | flashlight hold, sweep, repair-fuse | missing | Animation Editor; publish under your account or group |

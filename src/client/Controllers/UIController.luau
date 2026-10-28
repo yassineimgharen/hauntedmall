@@ -217,17 +217,30 @@ function UIController.Start()
 			windows.Keypad:Open(payload.Order)
 			setWindow("Keypad")
 		elseif kind == "BossIntro" then
-			hud:ShowBanner("THE SHADOW QUEEN", "Fire the light cannons to break her shield!", Theme.Colors.Purple)
+			hud:ShowBanner("THE SHADOW QUEEN", "Fire a 🔆 light cannon to break her shield!", Theme.Colors.Purple)
 			AudioController.Play("MonsterSpawn")
 		elseif kind == "BossPhase" then
 			hud:ShowBanner(
-				if payload.Phase == 2 then "PHASE 2" else "FINAL PHASE",
-				if payload.Phase == 2 then "Darkness and double slams!" else "Jump the sweeping beam!",
+				if payload.Phase == 2 then "PHASE 2: GROWING DARKNESS" else "FINAL PHASE",
+				if payload.Phase == 2
+					then "Darkness stops the cannons. Double slams!"
+					else "A beam sweeps the floor: JUMP over it!",
 				Theme.Colors.Red
 			)
+			AudioController.Play("MonsterSpawn")
 		elseif kind == "BossDefeated" then
-			hud:ShowBanner("QUEEN DEFEATED", "Hold out until dawn to complete Chapter 1!", Theme.Colors.Gold)
+			hud:ShowBanner("QUEEN DEFEATED", "Dawn breaks in a few seconds: Chapter 1 complete!", Theme.Colors.Gold)
 			AudioController.Play("LevelUp")
+		elseif kind == "ShieldBreak" then
+			hud:ShowBanner("SHIELD BROKEN!", "ATTACK NOW: hold your flashlight on her!", Theme.Colors.Green)
+			AudioController.Play("PowerUp")
+		elseif kind == "Jump" then
+			hud:Popup("⬆ JUMP!", Theme.Colors.Gold, UDim2.fromScale(0.5, 0.5))
+			AudioController.Play("Warning")
+		elseif kind == "DarkWarn" then
+			hud:Popup("🌑 DARKNESS INCOMING", Theme.Colors.Purple, UDim2.fromScale(0.5, 0.46))
+		elseif kind == "BossBlocked" then
+			hud:Popup("🛡️ SHIELDED: fire a cannon first", Theme.Colors.Purple, UDim2.fromScale(0.5, 0.6))
 		elseif kind == "PhantomUnmasked" then
 			if typeof(payload.Position) == "Vector3" then
 				hud:WorldPopup(payload.Position, "👻 UNMASKED!", Theme.Colors.Cyan)

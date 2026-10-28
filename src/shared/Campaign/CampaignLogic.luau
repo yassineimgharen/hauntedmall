@@ -264,4 +264,19 @@ function CampaignLogic.reward(rewards: { Cash: number, XP: number }, firstClear:
 	return { Cash = math.floor(rewards.Cash * scale), XP = math.floor(rewards.XP * scale) }
 end
 
+-- A chapter's finale reward, at most once per player: marks the chapter in the saved
+-- campaign and returns the reward, or nil if this level has none or it was already paid.
+function CampaignLogic.claimChapter(
+	campaign: { Chapters: { [any]: any } },
+	level: { Chapter: number, ChapterReward: { Cash: number, XP: number, Title: string }? },
+	now: number
+): { Cash: number, XP: number, Title: string }?
+	local reward = level.ChapterReward
+	if not reward or campaign.Chapters[level.Chapter] then
+		return nil
+	end
+	campaign.Chapters[level.Chapter] = now
+	return reward
+end
+
 return CampaignLogic

@@ -388,9 +388,8 @@ local function endNight()
 				result.Cash, result.XP = reward.Cash, reward.XP
 				if first then
 					campaign.Completed[level.Id] = os.time()
-					local chapterReward = level.ChapterReward
-					if chapterReward and not campaign.Chapters[level.Chapter] then
-						campaign.Chapters[level.Chapter] = os.time()
+					local chapterReward = CampaignLogic.claimChapter(campaign, level, os.time())
+					if chapterReward then
 						ProgressionService.AddCash(player, chapterReward.Cash)
 						ProgressionService.AddXP(player, chapterReward.XP)
 						local data = DataService.Get(player)

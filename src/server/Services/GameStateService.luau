@@ -19,6 +19,8 @@ GameStateService.PhaseChanged = Signal.new() -- (phase, nightNumber)
 
 local phase: Phase = "Intermission"
 local nightNumber = 0
+local phaseStartedAt = 0 -- server time
+local phaseEndsAt = 0 -- os.clock()
 -- Called synchronously (must not yield) as each phase begins, before it is published.
 -- Returns that phase's duration in normal-speed seconds, or nil for the default.
 -- MissionService uses it to pick the level at dawn of each Day and to set level lengths.
@@ -50,17 +52,29 @@ local function phaseDuration(newPhase: Phase): number
 	return normal
 end
 
+-- Ends the current phase within `seconds` (never lengthens it), e.g. dawn soon after a
+-- boss falls. Clients re-read PhaseDuration, so their timers stay right.
+function GameStateService.ShortenPhase(seconds: number)
+	local now = os.clock()
+	if now + seconds >= phaseEndsAt then
+		return
+	end
+	phaseEndsAt = now + seconds
+	ReplicatedStorage:SetAttribute("PhaseDuration", workspace:GetServerTimeNow() + seconds - phaseStartedAt)
+end
+
 local function runPhase(newPhase: Phase)
 	local duration = phaseDuration(newPhase)
 	phase = newPhase
+	phaseStartedAt = workspace:GetServerTimeNow()
+	phaseEndsAt = os.clock() + duration
 	ReplicatedStorage:SetAttribute("Phase", phase)
-	ReplicatedStorage:SetAttribute("PhaseStartedAt", workspace:GetServerTimeNow())
+	ReplicatedStorage:SetAttribute("PhaseStartedAt", phaseStartedAt)
 	ReplicatedStorage:SetAttribute("PhaseDuration", duration)
 	ReplicatedStorage:SetAttribute("NightNumber", nightNumber)
 	GameStateService.PhaseChanged:Fire(phase, nightNumber)
 
-	local endsAt = os.clock() + duration
-	while os.clock() < endsAt do
+	while os.clock() < phaseEndsAt do
 		if RunService:IsStudio() and workspace:GetAttribute("SkipPhase") == true then
 			workspace:SetAttribute("SkipPhase", false)
 			break

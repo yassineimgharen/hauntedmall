@@ -2,7 +2,23 @@
 
 _Last updated: 2026-10-28._
 
-## Current: Campaign Levels 5–7 (Chapter 1 complete)
+## Current: Shadow Queen boss fix (Level 7 night)
+Static checks ✅ · unit tests 57/57 ✅ (21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §B7).
+
+**Root causes found (from the code, before your report could be reproduced):**
+1. The server tested the flashlight against **one invisible point** 2 studs under the scaled crawler's centre, with the normal 20° cone. Her glowing face and crown sat about 30° away from that point, so aiming at her face did nothing; only aiming at her lower body counted (`tests/ShadowQueen.spec.luau` reproduces this).
+2. Her **spawn point and one of her waypoints were the fountain centre**, so whenever she was over it, that point sat inside the (procedural) fountain's solid centre column and the line-of-sight ray was blocked.
+3. All her parts were non-queryable, so the **mouse aim ray passed through her** to the floor or wall behind.
+4. Brood crawlers were **night tier 6**: walk speed 15.5 against your 16, 17.5 damage, 3 per summon, up to 10 alive, spawned 10 studs from the Queen (often next to you). Her slams also **ignored the hit grace**, so they stacked with bites.
+5. The `Shake` effect was sent but **never handled** on the client, and the bar didn't update between hits clearly enough to see damage.
+
+**Added:** `Levels/QueenLogic` (pure rules: shield, cannons, phases, damage, brood, spawns), `Shared/Util/LightCone` (sphere-vs-cone test), client `BossFxController` (damage numbers, hit flash, BLOCKED, camera shake), `tests/ShadowQueen.spec.luau`.
+**Changed:** `Levels/ShadowQueen` (new model, orbit, poses, fair attacks, brood, victory → early dawn), `CombatService` (multi-part light targets, `Recharge`), `EnemyService` (`HitPlayer` with shared hit grace and 3 s respawn protection, `Stun`), `GameStateService` (`ShortenPhase`), `CampaignLogic.claimChapter` (used by `MissionService`), `BossBar`, `UIController`, `CampaignConfig` (L07 hint and marker).
+**Next (after your test):** Chapter 2 (Food Court), once Level 7 plays well.
+
+---
+
+## Previous: Campaign Levels 5–7 (Chapter 1 complete)
 Static checks ✅ · unit tests 36/36 ✅ (19 campaign incl. mirror puzzle, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C3; §C and §C2 are also still untested).
 
 **Added:** `Levels/RestrictedAccess` (laser booths, vault keypad), `Levels/Stalker` (sound-hunting AI, noise, lockers, radios, music boxes), `Levels/Preparations` (scrap, workbench, floodlights, flashlight-scanned markings), `Levels/Rescue` (cocoons, escort, EVAC ring), `Levels/ShadowQueen` (cannon capture, mirror puzzle, Prism Lens, 3-phase boss), `Levels/MirrorGrid` (pure, tested), `Levels/NpcMover` (shared pathing), client `StealthController`, `KeypadPanel`, `BossBar`, lighting presets Hunt and Queen.

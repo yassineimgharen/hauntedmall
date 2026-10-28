@@ -13,6 +13,7 @@ local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Palette = require(ReplicatedStorage.Shared.Config.Palette)
 local Net = require(ReplicatedStorage.Shared.Net)
+local LightCone = require(ReplicatedStorage.Shared.Util.LightCone)
 local Validate = require(ReplicatedStorage.Shared.Util.Validate)
 local CollisionGroups = require(script.Parent.Parent.Util.CollisionGroups)
 local Notify = require(script.Parent.Parent.Util.Notify)
@@ -34,12 +35,23 @@ local TICK = 0.1
 local BEAM_OFFSET = Vector3.new(1.1, 1.0, -1.6)
 local BEAM_ON_BRIGHTNESS = 6
 
+-- Non-enemy things the beam can reveal or burn (level mechanics, bosses).
+export type LightOptions = {
+	-- Spheres to test (centre = part position). Default: the model's PrimaryPart as a point.
+	Parts: { BasePart }?,
+	Radius: { number }?, -- per part, matching Parts (default 0)
+}
+
+type LightTarget = {
+	OnLit: (player: Player, dt: number, part: BasePart) -> (),
+	Parts: { BasePart }?,
+	Radius: { number },
+}
+
 local states: { [Player]: BeamState } = {}
--- Non-enemy things the beam can reveal (level mechanics, e.g. disguised Phantom Shoppers).
-local lightTargets: { [Model]: (player: Player, dt: number) -> () } = {}
+local lightTargets: { [Model]: LightTarget } = {}
 local rayParams = CollisionGroups.worldRaycastParams()
-local cosCone = math.cos(math.rad(FL.ConeHalfAngle))
-local cosClose = math.cos(math.rad(50))
+local coneHalf = math.rad(FL.ConeHalfAngle)
 local cosDeviation = math.cos(math.rad(FL.MaxAimDeviation))
 
 local function capacity(player: Player): number
@@ -206,37 +218,78 @@ local function setBeam(player: Player, on: boolean)
 	setVisual(player, on)
 end
 
-local function inBeam(origin: Vector3, aim: Vector3, position: Vector3): (boolean, Vector3)
-	local offset = position - origin
-	local distance = offset.Magnitude
-	if distance > FL.Range or distance <= 0.1 then
-		return false, offset
-	end
-	local alignment = aim:Dot(offset / distance)
-	return alignment >= cosCone or (distance < 7 and alignment >= cosClose), offset
-end
-
--- onLit(player, dt) runs every beam tick while `model` is in a player's lit cone.
-function CombatService.RegisterLightTarget(model: Model, onLit: (player: Player, dt: number) -> ())
-	lightTargets[model] = onLit
+-- onLit(player, dt, part) runs every beam tick while `model` is in a player's lit cone
+-- (at most once per tick per player; `part` is the body part that was lit).
+function CombatService.RegisterLightTarget(
+	model: Model,
+	onLit: (player: Player, dt: number, part: BasePart) -> (),
+	options: LightOptions?
+)
+	lightTargets[model] = {
+		OnLit = onLit,
+		Parts = options and options.Parts,
+		Radius = options and options.Radius or {},
+	}
 end
 
 function CombatService.UnregisterLightTarget(model: Model)
 	lightTargets[model] = nil
 end
 
+-- A clear line from the lens to the sphere: try the point of the sphere nearest the aim
+-- line first (what the player is pointing at), then its centre. World geometry blocks it
+-- (e.g. the fountain), the target's own parts don't.
+local function canSee(model: Model, origin: Vector3, aim: Vector3, center: Vector3, radius: number): boolean
+	local offset = center - origin
+	local targets = { center }
+	if radius > 0 then
+		local along = origin + aim * math.max(0, offset:Dot(aim))
+		local fromCenter = along - center
+		if fromCenter.Magnitude > 0.05 then
+			table.insert(targets, 1, center + fromCenter.Unit * math.min(fromCenter.Magnitude, radius * 0.8))
+		end
+	end
+	for _, point in targets do
+		local hit = workspace:Raycast(origin, point - origin, rayParams)
+		if hit == nil or hit.Instance:IsDescendantOf(model) then
+			return true
+		end
+	end
+	return false
+end
+
 local function revealTargets(player: Player, origin: Vector3, aim: Vector3, dt: number)
-	for model, onLit in lightTargets do
-		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if root and model.Parent then
-			local lit, offset = inBeam(origin, aim, root.Position)
-			if lit then
-				local hit = workspace:Raycast(origin, offset, rayParams)
-				if hit == nil or hit.Instance:IsDescendantOf(model) then
-					task.spawn(onLit, player, dt)
-				end
+	for model, target in lightTargets do
+		if not model.Parent then
+			continue
+		end
+		local parts = target.Parts
+		if not parts then
+			local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
+			parts = if root then { root } else {}
+		end
+		for i, part in parts :: { BasePart } do
+			local radius = target.Radius[i] or 0
+			local offset = part.Position - origin
+			local distance = offset.Magnitude
+			local alignment = if distance > 0.01 then aim:Dot(offset / distance) else 1
+			if
+				LightCone.hits(alignment, distance, radius, coneHalf, FL.Range)
+				and canSee(model, origin, aim, part.Position, radius)
+			then
+				task.spawn(target.OnLit, player, dt, part)
+				break
 			end
 		end
+	end
+end
+
+-- Refills a player's flashlight (e.g. a light cannon's blast).
+function CombatService.Recharge(player: Player)
+	local state = states[player]
+	if state then
+		state.Battery = capacity(player)
+		state.OffAt = 0
 	end
 end
 
@@ -247,8 +300,7 @@ local function burn(player: Player, origin: Vector3, aim: Vector3, dt: number)
 			local offset = enemy.Root.Position - origin
 			local distance = offset.Magnitude
 			if distance <= FL.Range and distance > 0.1 then
-				local alignment = aim:Dot(offset / distance)
-				local inCone = alignment >= cosCone or (distance < 7 and alignment >= cosClose)
+				local inCone = LightCone.hits(aim:Dot(offset / distance), distance, 0, coneHalf, FL.Range)
 				if inCone and workspace:Raycast(origin, offset, rayParams) == nil then
 					EnemyService.Damage(enemy, damage, player)
 				end

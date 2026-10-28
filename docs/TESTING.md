@@ -26,6 +26,27 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
+## §B7: Shadow Queen boss fix (Level 7 night): test this first
+
+Setup: Workspace attributes `MissionTest_Level` = `L07` (string) before Play. **Don't** use `FastPhases` for this test: it shortens the boss night. To skip the day: Server view → `MissionTest_CompleteStage` = true, then `SkipPhase` = true twice (Day → Dusk → Night). If you skip the day, the cannons start empty but now recharge by themselves (about 25 s, faster standing in the ring). Optional: `QueenTest_Phase` = 2 or 3 (number) before the night starts her just past that phase's health threshold.
+
+- [ ] B7-1 About 6 s into the night: "THE SHADOW QUEEN" banner. She's a new model (not a big crawler): crowned head with 6 glowing eyes, purple veil-wings, banded abdomen, legs dangling. She circles the fountain inside a purple bubble shield and faces the nearest player.
+- [ ] B7-2 Boss bar: name and "PHASE 1/3", HP numbers on the bar, the purple "🛡️ SHIELDED: FIRE A LIGHT CANNON!" line and a hint naming how many cannons are ready. A gold arrow marker (🔆 FIRE CANNON) points to the nearest ready cannon.
+- [ ] B7-3 Shine on her while shielded: "🛡️ BLOCKED" floats at her, the hint "fire a cannon first" appears (once as a toast), and the HP doesn't move.
+- [ ] B7-4 Ready cannon: gold ring, glowing lens, label "🔆 READY: HOLD E". Hold E (1 s; gamepad X; mobile: tap/hold the prompt). A thick gold beam hits her and the bubble shatters with purple shards. Banner "SHIELD BROKEN!" and the bar turns green: "⚡ ATTACK NOW! SHIELD DOWN! (10s)" counting down. Your flashlight battery refills and crawlers freeze for 3 s.
+- [ ] B7-5 **The core fix:** hold your flashlight on her (face, crown, body or tail all count): gold damage numbers float off her, she flashes white and jerks back, the bar blinks white and the HP number drops every hit.
+- [ ] B7-6 In the last 3 s the bar turns gold: "⚠️ SHIELD RETURNING! (3s…)" and the bubble flickers. Then "Her shield is back up" and the HP stops dropping.
+- [ ] B7-7 While her shield is down, other ready cannons show "READY (shield is down)" and won't fire: you can't waste them. Two players at two cannons at once: only one fires.
+- [ ] B7-8 Phase 1: the first slam comes about 10 s after she appears: a red circle that fills up over 3 s while she rears up, then −20 and a purple shockwave and camera shake. The first crawlers arrive about 20 s in: solo just 1 (2 max alive), out of a purple portal far from you, never in a cannon ring. Crawlers that enter a lit cannon ring freeze and burn.
+- [ ] B7-9 At 66% HP: roar, red eyes, "PHASE 2: GROWING DARKNESS" banner. "🌑 She's gathering darkness" plus "DARKNESS INCOMING" 2 s before the screen darkens; cannons then show "⛔ DARK" and the bar counts the darkness down. Darkness never starts while her shield is down. Double slams (solo: a second circle 1.2 s later where you dodged to).
+- [ ] B7-10 At 33% HP: white-hot eyes, "FINAL PHASE". A faint purple disc plus a ghost bar shows for 2.5 s, then the bar sweeps one full turn in 8 s; "⬆ JUMP!" pops up just before it reaches you. Jumping clears it; standing gets −25.
+- [ ] B7-11 Victory: she shudders, bursts into purple and gold shards, sinks and fades. "QUEEN DEFEATED" banner, crawlers vanish, no more attacks, the bar says "👑 DEFEATED!". **Dawn arrives about 12 s later** (the night timer jumps). Results: LEVEL COMPLETE (+$800 · 900 XP) and "CHAPTER 1 COMPLETE +$1,000 · +1,000 XP · Queen Slayer".
+- [ ] B7-12 Replay L07 (set `MissionTest_Level` again on the same save): "LEVEL REPLAYED" with the reduced reward and **no** second Chapter 1 reward.
+- [ ] B7-13 Respawn: after dying, nothing can hurt you for 3 s.
+- [ ] B7-14 Performance (Dell i5-8th gen / 8 GB): Shift+F5 during phase 3 with the beam sweeping and crawlers out. Please send the FPS. Target: 40+ in Studio Play.
+
+**Short checklist for the Dell laptop:** B7-2, B7-3, B7-4, **B7-5**, B7-6, B7-8, B7-11, then B7-14. Two-player test (Test → Clients and Servers → 2): B7-7.
+
 ## §C3: Campaign Levels 5–7 (test after §C2)
 
 Shortcut: Workspace `MissionTest_Level` = `L05` / `L06` / `L07` before Play. Play days at normal speed (240 s). `MissionTest_CompleteStage` + `SkipPhase` jump to a night.
@@ -49,10 +70,7 @@ Shortcut: Workspace `MissionTest_Level` = `L05` / `L06` / `L07` before Play. Pla
 **Level 7: The Warning / The Shadow Queen**
 - [ ] C3-13 Day: 3 gold cannons with cyan rings around the fountain. Stand in a ring: "🔆 n%" rises (about 20 s solo, faster with friends), then CHARGED.
 - [ ] C3-14 North of the fountain: a 5×5 grid with a light source on the west and a crystal on the north. Rotating mirrors (E) redraws the beam. Correct route: the crystal blazes cyan and the toast says PRISM LENS earned.
-- [ ] C3-15 Night: about 6 s in comes the "THE SHADOW QUEEN" banner. A huge crowned crawler hovers over the atrium; the boss bar shows "SHIELDED". Flashlights do nothing yet.
-- [ ] C3-16 Hold E at a charged cannon (1.5 s): a gold beam hits her and the bar says "SHIELD DOWN" for 8 s; flashlights now drain her HP (Prism Lens holders noticeably faster). The cannon recharges on its own (about 25 s).
-- [ ] C3-17 Attacks: a red circle under someone, then a slam 2.4 s later (−30). Brood: 3 crawlers. Below 66 %: "PHASE 2", screen goes dark for 6 s (cannons won't fire) and double slams. Below 33 %: a purple bar appears, then sweeps the floor; jump it or take −25.
-- [ ] C3-18 Defeat her: "QUEEN DEFEATED" banner, crawlers vanish. At dawn: LEVEL COMPLETE plus "👑 CHAPTER 1 COMPLETE! +$1,000 · +1,000 XP · Title: Queen Slayer", then "Level 8 … coming". If she survives to dawn: LEVEL FAILED and "The Queen retreats…".
+- [ ] C3-15 to C3-18 (the night boss): replaced by §B7 above. One extra check: if she survives to dawn, LEVEL FAILED and "The Queen retreats…".
 - [ ] C3-19 Regression: Levels 3–4 night shoppers still move normally (their pathfinding moved to the shared NpcMover).
 
 ## §C2: Campaign Levels 3–4 (test after §C)

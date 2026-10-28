@@ -59,6 +59,8 @@ local EnemyConfig = {
 	Combat = {
 		-- After any hit, a player can't be damaged again for this long (stops swarm stacking).
 		PlayerHitGrace = 1.1,
+		-- Freshly (re)spawned players can't be hurt for this long.
+		RespawnGrace = 3,
 		-- A wind-up "misses" if the target moved further than AttackRange + this.
 		DodgeMargin = 1.5,
 		Knockback = 38, -- client-applied push away from the attacker, so you can break free

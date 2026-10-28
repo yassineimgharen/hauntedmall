@@ -11,6 +11,7 @@ local CONTROLLER_ORDER = {
 	"AtmosphereController",
 	"WorldFxController",
 	"EnemyVisualController",
+	"BossFxController",
 	"PromptController",
 	"FlashlightController",
 	"GuideController",
