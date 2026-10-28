@@ -525,6 +525,95 @@ test("L12 module records every event its objectives need", function()
 	recordsAll(L12, "src/server/Levels/ShiftingMaze.luau")
 end)
 
+print("Level 13 · Fresh Air / Toxic Bloom")
+
+local L13 = CampaignConfig.ById.L13
+local R13 = Rules.L13
+
+test("L13 day: three fans and the airflow clear it", function()
+	assert(play(L13.Day, { { "VentFanRepaired", 3 }, { "AirflowBalanced", 1 } }), "cleared")
+	assert(not play(L13.Day, { { "VentFanRepaired", 2 }, { "AirflowBalanced", 1 } }), "2 fans")
+end)
+
+test("L13 airflow puzzle: every starting position is solvable in at most five flips", function()
+	for mask = 0, 2 ^ R13.Dampers - 1 do
+		local vents = {}
+		for i = 1, R13.Dampers do
+			vents[i] = (mask // 2 ^ (i - 1)) % 2 == 1
+		end
+		local presses = Rules.solveAirflow(vents)
+		assert(presses, "unsolvable start " .. mask)
+		local state = vents
+		for _, i in presses :: { number } do
+			state = Rules.toggleDamper(state, i)
+		end
+		assert(Rules.airflowSolved(state), "solution works " .. mask)
+		assert(#(presses :: { number }) <= R13.Dampers, "short")
+	end
+	local flipped = Rules.toggleDamper({ true, true, true, true, true }, 1)
+	assert(not flipped[5] and not flipped[1] and not flipped[2] and flipped[3] and flipped[4], "ring neighbours")
+end)
+
+test("L13 night: purges are shared; the clean-air bonus needs purging, not hiding", function()
+	assert(play(L13.Night, { { "ZonePurged", 8 } }), "cleared")
+	assert(not play(L13.Night, { { "ZonePurged", 7 } }), "7 purges")
+	local idle = Logic.newTracker(L13.Night.Objectives)
+	assert(not table.find(Logic.optionalDone(idle, "A"), "nochoke"), "hiding all night earns nothing")
+	local source = fs.readFile("src/server/Levels/Ventilation.luau")
+	assert(source:find("not state.EverChoked and state.Purged", 1, true), "never choked AND purged")
+end)
+
+test("L13 zones: the food court splits into six gas zones; the atrium is clean air", function()
+	eq(Rules.zoneAt(-217, 0), "Kitchen", "kitchen")
+	eq(Rules.zoneAt(-160, 0), "HallWest", "hall west")
+	eq(Rules.zoneAt(-120, 0), "HallEast", "hall east")
+	eq(Rules.zoneAt(-141, 70), "NorthWing", "north restaurants")
+	eq(Rules.zoneAt(-129, -110), "SouthWing", "dock")
+	eq(Rules.zoneAt(-217, -70), "BackRooms", "storage")
+	eq(Rules.zoneAt(-217, 70), "BackRooms", "freezer")
+	eq(Rules.zoneAt(0, 0), nil, "atrium")
+	eq(Rules.zoneAt(-85, 0), nil, "promenade")
+	for zone, list in R13.Adjacent do
+		for _, other in list do
+			assert(table.find(R13.Adjacent[other], zone), zone .. " <-> " .. other)
+		end
+	end
+end)
+
+test("L13 gas: sources fill, neighbours leak, purges clear and shield", function()
+	local levels = Rules.gasStep({}, { Kitchen = true }, {}, 10, 0)
+	assert(math.abs(levels.Kitchen - 10 * R13.SourceRise) < 1e-9, "source rises")
+	eq(levels.HallWest, 0, "no leak below the threshold")
+	levels.Kitchen = 0.9
+	local leaked = Rules.gasStep(levels, { Kitchen = true }, {}, 10, 0)
+	assert(leaked.HallWest > 0 and leaked.BackRooms > 0, "spreads to neighbours")
+	eq(leaked.HallEast, 0, "only to neighbours")
+	local purged = Rules.gasStep({ Kitchen = 1 }, { Kitchen = true }, { Kitchen = 100 }, R13.PurgeSeconds, 0)
+	eq(purged.Kitchen, 0, "a purge clears even an open source")
+	assert(R13.PurgeShield >= 20, "and keeps it clear for a while")
+end)
+
+test("L13 fairness: time to choke, oxygen tanks, dodgeable exhales, bloaters capped", function()
+	local meter, t = 0, 0
+	while meter < 1 do
+		meter = Rules.gasMeterStep(meter, 1, 0.25)
+		t += 0.25
+	end
+	assert(t >= 7, string.format("%.1fs in thick gas before choking", t))
+	eq(Rules.gasMeterStep(0.5, 0, 1), 0.5 - R13.MeterFall, "clean air clears it")
+	assert(R13.StationDrop >= 0.5, "one breath at a tank buys real time")
+	local b = MonsterTuning.Bloater
+	assert((b.ExhaleRadius + 1) / MonsterTuning.PlayerSpeed < b.ExhaleWarn, "exhale circle can be left")
+	assert(EnemyConfig.Types.SporeBloater.Damage == 0, "bloaters never bite")
+	eq(Rules.bloaterCap(1), 2, "solo")
+	eq(Rules.bloaterCap(8), 6, "cap")
+	assert(R13.ChokeDamage / R13.ChokeEvery <= 4, "choking hurts slowly: time to reach air")
+end)
+
+test("L13 module records every event its objectives need", function()
+	recordsAll(L13, "src/server/Levels/Ventilation.luau")
+end)
+
 print("Rewards, achievements and saves")
 
 test("achievements: earned once from saved progress, paid once, survive save/load", function()

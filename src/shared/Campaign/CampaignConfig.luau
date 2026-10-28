@@ -27,6 +27,7 @@
 --   FrostPrintFound HiddenFreezerOpened FrozenLogRecovered FrozenSolid IceWallMelted FreezerEscaped
 --   CleanEscape (HiddenFreezer)
 --   AnomalyFound RouteChalked SealCollected MazeEscaped QuickEscape (ShiftingMaze)
+--   VentFanRepaired AirflowBalanced ZonePurged Choked CleanAir BloaterPopped (Ventilation)
 
 local CampaignConfig = {}
 
@@ -109,6 +110,12 @@ CampaignConfig.Events = {
 	SealCollected = true,
 	MazeEscaped = true,
 	QuickEscape = true,
+	VentFanRepaired = true,
+	AirflowBalanced = true,
+	ZonePurged = true,
+	Choked = true,
+	CleanAir = true,
+	BloaterPopped = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -1235,7 +1242,74 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(13, "Feast Prep", "Co-op cooking stations.", "Siege of the Food Court", "Defend the stalls from waves."),
+	{
+		Id = "L13",
+		Index = 13,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1400, XP = 1500 },
+		Modules = { "Ventilation" },
+		Day = {
+			Name = "Fresh Air",
+			Teaser = "Crawl through the ducts to fix the vent fans, then solve the airflow damper puzzle.",
+			Story = "Inspectors want the emergency ventilation working before tonight. The fan rooms are only reachable through the ducts.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "fans",
+					Text = "Repair the ventilation fans",
+					Event = "VentFanRepaired",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Crawl ducts: maintenance corridor (north wall), storage (west wall), loading dock (west wall). Hold E at the red light.",
+					Marker = { Tag = "BrokenFan", Label = "🌀 FIX FAN" },
+				},
+				{
+					Id = "airflow",
+					Text = "Balance the airflow",
+					Event = "AirflowBalanced",
+					Scope = "Team",
+					Hint = "Maintenance corridor panel: each damper flips its vent AND both neighbours. Make all five vents green.",
+					Marker = { Tag = "AirflowDamper", Label = "🎛️ FLIP DAMPERS" },
+				},
+				{ Id = "myfans", Text = "Fix 2 fans yourself", Event = "VentFanRepaired", Target = 2, Optional = true },
+			},
+		},
+		Night = {
+			Name = "Toxic Bloom",
+			Teaser = "Poison gas spreads zone by zone. Purge it, breathe at oxygen tanks, burn spore bloaters from afar.",
+			Story = "Spore vents are cracking open all over the food court. Purge the gas before it chokes everyone.",
+			Duration = 210,
+			Objectives = {
+				{
+					Id = "purge",
+					Text = "Purge the gas from the zones",
+					Event = "ZonePurged",
+					Target = 8,
+					Scope = "Team",
+					Hint = "Each zone has a yellow PURGE switch (hold E). Purged air stays clean for 30 s, then the gas creeps back.",
+					Marker = { Tag = "PurgeSwitch", Label = "🌀 PURGE GAS" },
+				},
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{
+					Id = "nochoke",
+					Text = "Help purge and never choke",
+					Event = "CleanAir",
+					Optional = true,
+				},
+				{ Id = "pop", Text = "Burn 3 Spore Bloaters", Event = "BloaterPopped", Target = 3, Optional = true },
+			},
+			Rules = {
+				Tier = 4,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Toxic",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "☣️ Toxic gas! Watch your ☣️ meter, purge the zones, breathe at the blue oxygen tanks.",
+			},
+		},
+	},
 	planned(14, "The Chef's Warning", "Prepare the kitchen arena.", "The Gorging Chef", "Chapter 2 boss."),
 	-- ── Chapter 3: Underground Parking ──────────────────────────────────────
 	planned(

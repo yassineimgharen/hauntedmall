@@ -504,4 +504,146 @@ function FoodCourtRules.signal(distance: number): number
 	return math.clamp(1 - distance / FoodCourtRules.L12.SignalRange, 0, 1)
 end
 
+-- ── Level 13 · Fresh Air / Toxic Bloom ──────────────────────────────────────
+
+FoodCourtRules.L13 = {
+	Fans = 3,
+	FanSeconds = 3,
+	Dampers = 5, -- the airflow puzzle: damper i flips vents i-1, i, i+1 (in a ring)
+	-- night: gas per zone (0..1)
+	Zones = { "Kitchen", "HallWest", "HallEast", "NorthWing", "SouthWing", "BackRooms" },
+	Adjacent = {
+		Kitchen = { "HallWest", "BackRooms" },
+		HallWest = { "Kitchen", "HallEast", "NorthWing", "SouthWing" },
+		HallEast = { "HallWest", "NorthWing", "SouthWing" },
+		NorthWing = { "HallWest", "HallEast", "BackRooms" },
+		SouthWing = { "HallWest", "HallEast", "BackRooms" },
+		BackRooms = { "Kitchen", "NorthWing", "SouthWing" },
+	},
+	SourceRise = 1 / 45, -- a zone with an open spore vent
+	SpreadRise = 1 / 90, -- from a neighbour above SpreadFrom
+	SpreadFrom = 0.5,
+	PurgeSeconds = 6, -- a purge clears its zone over this long...
+	PurgeShield = 30, -- ...and keeps it clear this long
+	PurgeHold = 2.5,
+	PurgeTarget = 8,
+	FirstSources = 2,
+	NewSourceEvery = 45,
+	MaxSources = 4,
+	-- your gas meter (0..1)
+	MeterRise = 0.12, -- per second, times the zone's gas
+	MeterFall = 0.15, -- per second in clean air (zone gas under CleanBelow, or outside)
+	CleanBelow = 0.15,
+	StationDrop = 0.6, -- an oxygen tank breath
+	StationCooldown = 6,
+	ChokeDamage = 6, -- every ChokeEvery seconds while the meter is full
+	ChokeEvery = 2,
+	Exhale = 0.35, -- a bloater's exhale adds this to your meter
+	PopGas = 0.25, -- a burst bloater adds this to its zone (and to anyone within PopRadius)
+	PopRadius = 10,
+	BloaterFirst = 20,
+	BloaterEvery = 20,
+	Tier = 4,
+}
+
+-- The airflow panel: returns the vents after flipping damper i.
+function FoodCourtRules.toggleDamper(vents: { boolean }, i: number): { boolean }
+	local n = #vents
+	local result = table.clone(vents)
+	for _, k in { i - 1, i, i + 1 } do
+		local index = (k - 1) % n + 1
+		result[index] = not result[index]
+	end
+	return result
+end
+
+function FoodCourtRules.airflowSolved(vents: { boolean }): boolean
+	for _, open in vents do
+		if not open then
+			return false
+		end
+	end
+	return true
+end
+
+-- Dampers to press (each at most once) that open every vent, or nil if impossible.
+function FoodCourtRules.solveAirflow(vents: { boolean }): { number }?
+	local n = #vents
+	for mask = 0, 2 ^ n - 1 do
+		local state = vents
+		local presses = {}
+		for i = 1, n do
+			if (mask // 2 ^ (i - 1)) % 2 == 1 then
+				state = FoodCourtRules.toggleDamper(state, i)
+				table.insert(presses, i)
+			end
+		end
+		if FoodCourtRules.airflowSolved(state) then
+			return presses
+		end
+	end
+	return nil
+end
+
+-- Which gas zone a point is in (nil = outside the food court: clean air).
+function FoodCourtRules.zoneAt(x: number, z: number): string?
+	if x < -250 or x > -98 or z < -128 or z > 92 then
+		return nil
+	end
+	if x < -184 then
+		if z >= -96 and z <= -48 or z >= 48 then
+			return "BackRooms"
+		end
+		return if z > -48 and z < 48 then "Kitchen" else nil
+	end
+	if z >= 48 then
+		return "NorthWing"
+	elseif z <= -48 then
+		return "SouthWing"
+	end
+	return if x < -141 then "HallWest" else "HallEast"
+end
+
+-- One gas step for every zone. purgedUntil[zone] = clock time its purge shield ends.
+function FoodCourtRules.gasStep(
+	levels: { [string]: number },
+	sources: { [string]: boolean },
+	purgedUntil: { [string]: number },
+	dt: number,
+	now: number
+): { [string]: number }
+	local r = FoodCourtRules.L13
+	local nextLevels = {}
+	for _, zone in r.Zones do
+		local level = levels[zone] or 0
+		if now < (purgedUntil[zone] or 0) then
+			level = math.max(0, level - dt / r.PurgeSeconds)
+		else
+			local rise = if sources[zone] then r.SourceRise else 0
+			for _, other in r.Adjacent[zone] do
+				if (levels[other] or 0) >= r.SpreadFrom then
+					rise += r.SpreadRise
+				end
+			end
+			level = math.min(1, level + rise * dt)
+		end
+		nextLevels[zone] = level
+	end
+	return nextLevels
+end
+
+-- A player's gas meter after dt seconds in air of the given gas level.
+function FoodCourtRules.gasMeterStep(meter: number, gas: number, dt: number): number
+	local r = FoodCourtRules.L13
+	if gas < r.CleanBelow then
+		return math.max(0, meter - r.MeterFall * dt)
+	end
+	return math.min(1, meter + r.MeterRise * gas * dt)
+end
+
+-- Spore Bloaters alive at once: 2 solo, +1 per extra player, at most 6.
+function FoodCourtRules.bloaterCap(playerCount: number): number
+	return math.min(1 + players(playerCount), 6)
+end
+
 return FoodCourtRules

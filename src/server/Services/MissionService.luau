@@ -46,6 +46,7 @@ local LEVEL_MODULES: { [string]: any } = {
 	Deliveries = require(script.Parent.Parent.Levels.Deliveries),
 	HiddenFreezer = require(script.Parent.Parent.Levels.HiddenFreezer),
 	ShiftingMaze = require(script.Parent.Parent.Levels.ShiftingMaze),
+	Ventilation = require(script.Parent.Parent.Levels.Ventilation),
 }
 
 type Stage = "Day" | "Night"
