@@ -2,7 +2,25 @@
 
 _Last updated: 2026-10-28._
 
-## Current: Shadow Queen boss fix (Level 7 night)
+## Current: Chapter 2, the Haunted Food Court (Levels 8–14)
+Static checks ✅ · unit tests 117/117 ✅ (60 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C4).
+
+**Added:** the food court wing (`World/FoodCourt`, `World/FoodCourtDetail`, `Layout.FoodCourt`); levels `GrandReopening`, `KitchenFire`, `Deliveries`, `HiddenFreezer`, `ShiftingMaze`, `Ventilation`, `GorgingChef`; pure rules `FoodCourtRules`, `ChefLogic`; monsters `PossessedCart`, `ParcelMimic` (and Mite), `FrostWraith`, `SporeBloater`, `Meatball` on a shared `Enemies/Rig`; `Util/Telegraph` (floor warnings); `Shared/Config/MonsterTuning`; `Shared/Campaign/AchievementConfig`; client `MonsterAnimations`, `MeterController` (cold/gas/signal meters), `CinematicController`, `FoodCourtFxController`; 7 lighting presets; `tests/Chapter2.spec.luau`.
+**Changed:**
+- `EnemyService`: per-type `Kind` hooks, `Burn` with `LightScale`, AI helpers.
+- `CombatService`: the flashlight goes through `Burn`.
+- `MissionService`: modules registered, achievements paid, campaign state carries achievements.
+- `NightService`: level `SpawnTag`, floor warnings cleared at dawn.
+- `DataService` and `CampaignLogic`: chapter keys are now strings ("1"); old numeric keys are migrated on load. A save holding only chapter 2 would otherwise be a sparse array, which DataStores can reject.
+- `Lobby`: west doorway. The Level 2 west panel, a pair of lurker eyes and the wainscot moved out of the opening.
+- Client: `BossBar` (Chef status), `BossFxController`, `UIController` (generic Banner/Popup/WorldPopup, payload-driven boss banners), `GuideController` (multi-step markers), `StealthController` (`MoveScale` slows), `EnemyVisualController` (per-type animations).
+- `Carry` (mop, extinguisher, dishes); `CampaignConfig` (L08–L14, chapter 2 name).
+**Balance found by tests during development:** the Level 9 breaker window grew from 7 s to 8 s (solo sprint 5.6 s); the Chef's HP and hunger cycle were cut (the simulated solo kill fell from 192 s to 135 s of a 240 s night).
+**Next:** your Studio pass of §C4, then fixes. Chapter 3 only after Chapter 2 plays well.
+
+---
+
+## Previous: Shadow Queen boss fix (Level 7 night)
 Static checks ✅ · unit tests 57/57 ✅ (21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §B7).
 
 **Root causes found (from the code, before your report could be reproduced):**

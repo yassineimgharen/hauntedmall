@@ -26,7 +26,52 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §B7: Shadow Queen boss fix (Level 7 night): test this first
+## §C4: Chapter 2, the Haunted Food Court (Levels 8–14): test this first
+
+The food court is a new wing **west of the atrium**: walk through the big doorway under the gold "🍔 FOOD COURT ›" sign (west wall, opposite the East Wing).
+
+**Setup for any level:** before Play, add the Workspace attribute `MissionTest_Level` = `L08` … `L14` (string). Don't use `FastPhases`. To skip a stage: Server view → `MissionTest_CompleteStage` = true, then `SkipPhase` = true twice (Day → Dusk → Night). Skipping a day only marks its objectives done; it doesn't change the world (for example, if you skip Level 11's day the false wall still opens at night). Extra helpers: `FireTest_CloseValves` = true (Level 9: the night starts with the gas off and the exit open) and `ChefTest_Phase` = 2 or 3 (Level 14: the boss starts in that phase).
+
+**World (any level)**
+- [ ] C4-1 Atrium west wall: a 24-wide doorway into a promenade, then the dining hall (checker-tile floor, skylight, a neon halo with "NIGHT BITES / FOOD COURT" signs, tables, booths). Six restaurants (3 north, 3 south) with lit signs and menus; the grand kitchen to the west; the walk-in freezer (NW), storage with a ⬇ BASEMENT ramp (SW), maintenance and service corridors, the loading dock with a truck, three green 🏃 EXIT doors and landings. Please report any **wall gaps, floating props or blocked doorways** with a screenshot and where you stood.
+- [ ] C4-2 Crawl ducts: maintenance corridor north wall, storage west wall and dock west wall each lead (7 studs high) to a small fan room.
+
+**Level 8: Grand Reopening / Kitchen Nightmare**
+- [ ] C4-3 Day: every restaurant shutter is down and its sign dark. A yellow janitor cart near the promenade: "Take Mop". With a mop, slime puddles show "Scrub" (hold E 2 s), then a puddle fades with "✨ CLEAN!". Yellow switch boxes beside each shutter: "Reopen" (hold 2.5 s) raises the shutter and the sign flickers on. 8 puddles + 4 restaurants clears the day.
+- [ ] C4-4 Night: all shutters fly open. Appliances turn purple, rattle, smoke and show "👻 POSSESSED" with a bar. A possessed one throws knives: a **pink lane** fills for 1.2 s, then knives fly down it (−12 if you're in it). Holding your flashlight on it fills its bar (4 s) and **stops it throwing while lit**. After about 25 s a possessed cart rolls out: it stops and shakes, a red lane shows its charge, then it races along it and spins out dizzy. 5 exorcisms + surviving clears the night.
+
+**Level 9: Live Wires / Grease Fire**
+- [ ] C4-5 Day: six yellow cable breaks with a label "⚡ LIVE 1.4s" (red, sparks) then "✅ SAFE 2.9s" (green). The Splice prompt only appears while SAFE; if it goes live while you're close you get zapped (−10). After 5, the two MAIN BREAKER levers in the maintenance corridor unlock: pull one, then the other within 8 s ("Too slow" resets them).
+- [ ] C4-6 Night: fire cells (orange floor tiles with flames) spread from the kitchen over the hall. Standing in fire hurts (about −12 a second). Red 🧯 FIRE cabinets: take an extinguisher, then "Spray" (hold 0.4 s) puts out a cross of 5 cells. Three gas mains (kitchen west wall, storage east wall, freezer west wall): each slows the fire; after all 3 the dock exit's red "EXIT JAMMED" barrier lifts. Walk out onto the landing: "escaped the fire". The south restaurants never burn.
+
+**Level 10: Special Delivery / Return to Sender**
+- [ ] C4-7 Day: ten parcels at the dock, a manifest board on the east wall. "Inspect" (hold 1.2 s) shows a label. Shining your flashlight on a parcel adds "UV: clean ✓" or "☣ UV HANDPRINT!" (a purple handprint appears on it). Then **E = Deliver**, **Q = Quarantine**. Right calls count, wrong ones warn. After 5 the truck cab (side door) opens: "Read Logbook" shows a story banner.
+- [ ] C4-8 Night: four pulsing purple nests (dock, service corridor, two restaurants) with bars: hold your flashlight on one (6 s). Ordinary-looking boxes around the hall: some are **Parcel Mimics** that burst open (legs, eyes, flapping lid) when you come close or light them, then pounce at a red/purple circle. Killed, each splits into two small mites. Infected parcels delivered by mistake in the day add mimics.
+
+**Level 11: Cold Trail / Deep Freeze**
+- [ ] C4-9 Day: sweep your flashlight over the floor at Frost Bite Creamery (north row, west end): glowing footprints appear and the arrow leads to the next one, through the back door, the maintenance corridor and the walk-in freezer to its west wall. A lever frozen in ice: light it (5 s) and the label says THAWED, then pull it: the wall section slides into the floor and reveals the hidden freezer (icicles, blue light). Inside, the 🥶 meter rises (about 25 s to full); full = frozen solid in an ice block for 2.5 s (−6). The heat lamp outside warms you fast. Chip 3 frozen logbooks (hold 3 s each): story toasts.
+- [ ] C4-10 Night: a tall icy wraith comes out of the hidden freezer. Your light **doesn't hurt it**; it slows it and it shudders. Near it, the cold meter and blue screen edges rise. Frost breath shows a blue lane first. Standing in a heat lamp's orange ring makes it ignore you. The north exit at the end of the maintenance corridor is iced over: light it (about 20 s solo; the wraith comes to the noise), then walk out onto the landing.
+
+**Level 12: Under the Floor / The Shifting Maze**
+- [ ] C4-11 Day: take the storage room ramp down (it's steep, about 38°: tell me if you can't walk up or down it). The basement is a brick maze. A 📡 ANOMALY SIGNAL meter rises as you approach hidden anomalies; they appear (purple orb) within about 7 studs: "Record" (2 s). White chalk circles along the route: "Draw Arrow" leaves a glowing arrow pointing at the maze's centre.
+- [ ] C4-12 Night: "THE MAZE IS SHIFTING" every ~22 s: red lines on the floor show where walls will rise, then walls rise and sink (camera shake). Crawlers prowl. Four purple seals in the far corners; after all four, the centre portal says "PORTAL OPEN": step in and you're back in the dining hall.
+
+**Level 13: Fresh Air / Toxic Bloom**
+- [ ] C4-13 Day: crawl to the three fan rooms (red light, "Replace Belt" 3 s, then the blades spin up). Then the AIRFLOW panel in the maintenance corridor: 5 gauges and 5 damper levers; each flip changes its gauge **and both neighbours** (ring). All five green clears it.
+- [ ] C4-14 Night: green crack vents open, green fog thickens zone by zone, and the ☣️ meter and green screen edges rise in gas. Yellow PURGE switch per zone (hold 2.5 s) clears it for 30 s. Blue oxygen tanks: "Breathe" (−60% meter, 6 s cooldown). Floating spore bloaters swell (green circle) and exhale gas; burned, they burst into a cloud. The atrium and promenade have clean air.
+
+**Level 14: Patient Zero / The Gorging Chef (boss)**
+- [ ] C4-15 Day: five purple growths. A green circle fills before each spits (−10); "Take Sample" (2 s) only works between spits. With 4 samples, brew in Slice of Night (south middle restaurant): Chop → Boil → Bottle. Purple veins then glow to the grand kitchen's main door, sealed by a fleshy membrane: "Peek Inside" plays a short cutscene (letterbox, camera on the sleeping chef, "PATIENT ZERO").
+- [ ] C4-16 Night: a cutscene (skippable with any key) shows the Gorging Chef (big chef: toque, cleaver, frying pan, glowing purple belly). Boss bar: "🧈 GREASED · ORDER UP IN 20s" and the pass status. Light on him: "🧈 GREASED" (blocked). The guide arrow walks you through: "🍳 COOK A DISH" (stove pots on the cooking lines, 2 s) → "🧪 LACE IT" (green vats near the doors, 1 s) → "🍽️ SERVE IT" (the serving pass by the west wall).
+- [ ] C4-17 ORDER UP: he walks to the pass and eats. A laced dish makes him **SICK**: green glow, the bar turns green "🤢 SICK! BURN HIM NOW! (12s)", and your light now shows damage numbers. A plain dish heals him ("IT HEALED HIM"); an empty pass makes him RAVENOUS (red eyes, chases, chops faster).
+- [ ] C4-18 Attacks: cleaver chop (red lane, then −22), thrown pans (red circles where you are and where you're running), phase 2 (66%) grease pools that slow you and meatballs, phase 3 (33%) both cooking lines flare (orange lanes). He never attacks while sick.
+- [ ] C4-19 Victory: he shudders and topples. "CHEF DEFEATED", dawn about 12 s later, LEVEL COMPLETE, then "CHAPTER 2 COMPLETE +$2,000 · +2,000 XP · Title: Head Chef of the Night" and the 🏆 achievement banners (Food Court Hero; Queen Slayer if you didn't have it yet). Replaying L14 must **not** pay the chapter again.
+- [ ] C4-20 Achievements: the first time a qualifying bonus is done, a gold "🏆 …" banner and toast appear with cash and XP. Rejoin: they're not paid twice.
+- [ ] C4-21 Performance (Dell): Shift+F5 in Level 9's night with lots of fire, Level 13's night with fog, and Level 14's phase 3. Please send the FPS numbers.
+
+**Short checklist for the Dell laptop:** C4-1, C4-3, C4-4, C4-6, C4-8, C4-10, C4-12, C4-14, C4-16, **C4-17**, C4-19, then C4-21. With 2 players (Test → Clients and Servers): C4-5 (levers split between two players) and C4-17 (one cooks, one burns).
+
+## §B7: Shadow Queen boss fix (Level 7 night)
 
 Setup: Workspace attributes `MissionTest_Level` = `L07` (string) before Play. **Don't** use `FastPhases` for this test: it shortens the boss night. To skip the day: Server view → `MissionTest_CompleteStage` = true, then `SkipPhase` = true twice (Day → Dusk → Night). If you skip the day, the cannons start empty but now recharge by themselves (about 25 s, faster standing in the ring). Optional: `QueenTest_Phase` = 2 or 3 (number) before the night starts her just past that phase's health threshold.
 

@@ -163,7 +163,8 @@ local function buildShell(parent: Instance)
 	local rowTop = H.HalfZ + F.RowDepth -- 78
 
 	-- floors
-	floor(parent, P.MinX, P.MaxX, -P.HalfZ, P.HalfZ, LOOK.HallFloor)
+	-- runs under the atrium wall's doorway (x -72..-70) to meet the atrium floor: no gap
+	floor(parent, P.MinX, P.MaxX + 2, -P.HalfZ, P.HalfZ, LOOK.HallFloor)
 	floor(parent, H.MinX, H.MaxX, -rowTop, rowTop, LOOK.HallFloor) -- hall + both restaurant rows
 	floor(parent, K.MinX, K.MaxX, -K.HalfZ, K.HalfZ, LOOK.KitchenFloor)
 	floor(parent, fr.MinX, fr.MaxX, fr.MinZ, fr.MaxZ, LOOK.FreezerFloor)
