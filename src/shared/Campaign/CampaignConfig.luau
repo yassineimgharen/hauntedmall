@@ -22,6 +22,7 @@
 --   CannonCharged CannonHelped LightPuzzleSolved CannonFired QueenDefeated (ShadowQueen)
 -- Chapter 2 (the Haunted Food Court):
 --   SlimeScrubbed RestaurantReopened ApplianceExorcised ExorcismHelped CartWrecked (GrandReopening)
+--   CableSpliced SwitchboardReset GasValveClosed FireEscaped FireExtinguished (KitchenFire)
 
 local CampaignConfig = {}
 
@@ -80,6 +81,11 @@ CampaignConfig.Events = {
 	ApplianceExorcised = true,
 	ExorcismHelped = true,
 	CartWrecked = true,
+	CableSpliced = true,
+	SwitchboardReset = true,
+	GasValveClosed = true,
+	FireEscaped = true,
+	FireExtinguished = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -874,13 +880,87 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(
-		9,
-		"Health Inspection",
-		"Fix kitchen equipment against the clock.",
-		"Cold Storage",
-		"Freezer zones slow you; frozen crawlers thaw."
-	),
+	{
+		Id = "L09",
+		Index = 9,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1000, XP = 1100 },
+		Modules = { "KitchenFire" },
+		Day = {
+			Name = "Live Wires",
+			Teaser = "Splice sparking cables between shocks, then reset the switchboard against the clock.",
+			Story = "The food court's wiring is shot. Splice the broken cables while they're safe, then throw both main breakers.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "splice",
+					Text = "Splice the broken cables",
+					Event = "CableSpliced",
+					Target = 5,
+					Scope = "Team",
+					Hint = "Cables spark LIVE (red), then go SAFE (green) for a few seconds: hold E only while it's SAFE.",
+					Marker = { Tag = "CableBreak", Label = "🔌 SPLICE CABLE" },
+				},
+				{
+					Id = "switchboard",
+					Text = "Reset the main switchboard",
+					Event = "SwitchboardReset",
+					Scope = "Team",
+					Hint = "Maintenance corridor: pull BOTH main breakers within 8 seconds. Split up, or sprint!",
+					Marker = { Tag = "SwitchLever", Label = "⚡ PULL BREAKER" },
+				},
+				{
+					Id = "mysplice",
+					Text = "Splice 2 cables yourself",
+					Event = "CableSpliced",
+					Target = 2,
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "Grease Fire",
+			Teaser = "A kitchen fire spreads cell by cell. Shut off the gas and escape through the dock.",
+			Story = "A grease fire roars out of the grand kitchen and it's spreading fast. Shut off the gas mains and get out!",
+			Duration = 180,
+			Objectives = {
+				{
+					Id = "valves",
+					Text = "Shut off the gas mains",
+					Event = "GasValveClosed",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Gas mains: grand kitchen (west wall), storage room, walk-in freezer. Grab a 🧯 from a red cabinet to clear a path.",
+					Marker = { Tag = "GasValve", Label = "🔧 SHUT OFF GAS" },
+				},
+				{
+					Id = "escape",
+					Text = "Escape through the dock's emergency exit",
+					Event = "FireEscaped",
+					Hint = "Through a south restaurant's back door to the service corridor, then the loading dock exit.",
+					Marker = { Tag = "EscapeZone", Label = "🚪 ESCAPE" },
+				},
+				{
+					Id = "fires",
+					Text = "Put out 12 fires",
+					Event = "FireExtinguished",
+					Target = 12,
+					Optional = true,
+				},
+				{ Id = "nodown", Text = "Don't get knocked down", Kind = "Avoid", Event = "Downed", Optional = true },
+			},
+			Rules = {
+				Tier = 2,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Inferno",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "🔥 FIRE! The grand kitchen is ablaze. Shut off the 3 gas mains, then escape through the loading dock!",
+			},
+		},
+	},
 	planned(
 		10,
 		"Lost Recipes",

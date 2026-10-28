@@ -185,6 +185,118 @@ test("L08 module records every event its objectives need", function()
 	recordsAll(L08, "src/server/Levels/GrandReopening.luau")
 end)
 
+print("Level 9 · Live Wires / Grease Fire")
+
+local L09 = CampaignConfig.ById.L09
+local R9 = Rules.L09
+
+test("L09 day: 5 spliced cables and the switchboard clear it", function()
+	assert(play(L09.Day, { { "CableSpliced", 5 }, { "SwitchboardReset", 1 } }), "cleared")
+	assert(not play(L09.Day, { { "CableSpliced", 4 }, { "SwitchboardReset", 1 } }), "4 cables")
+	assert(not play(L09.Day, { { "CableSpliced", 6 } }), "no switchboard")
+end)
+
+test("L09 night: gas off is shared, but everyone must escape themselves", function()
+	local tracker = Logic.newTracker(L09.Night.Objectives)
+	for _ = 1, 3 do
+		Logic.record(tracker, "A", "GasValveClosed")
+	end
+	Logic.record(tracker, "A", "FireEscaped")
+	assert(Logic.requiredComplete(tracker, "A", true), "A escaped")
+	assert(not Logic.requiredComplete(tracker, "B", true), "B is still inside")
+	Logic.record(tracker, "B", "FireExtinguished", 12)
+	assert(table.find(Logic.optionalDone(tracker, "B"), "fires"), "12 fires out in one go counts")
+end)
+
+test("L09 cables: the safe window fits a splice with time to react; live shocks", function()
+	assert(R9.Safe >= R9.SpliceSeconds + 1, "a second of slack")
+	local cycle = R9.Live + R9.Safe
+	local live, left = Rules.cablePhase(0.5, 0)
+	eq(live, "Live", "starts live")
+	assert(math.abs(left - (R9.Live - 0.5)) < 1e-9, "time left")
+	eq((Rules.cablePhase(R9.Live + 0.1, 0)), "Safe", "then safe")
+	eq((Rules.cablePhase(cycle + 0.1, 0)), "Live", "and repeats")
+	assert(R9.Cables >= 6 and R9.ShockDamage <= 15, "spare cables; shocks sting, not kill")
+end)
+
+test("L09 switchboard: both levers within the window; solo can sprint it", function()
+	local pulled = {}
+	assert(not Rules.pullLever(pulled, "A", 0), "first lever waits")
+	assert(Rules.pullLever(pulled, "B", R9.Window - 0.5), "second in time")
+	local late = {}
+	Rules.pullLever(late, "A", 0)
+	assert(not Rules.pullLever(late, "B", R9.Window + 0.5), "too slow")
+	assert(not Rules.pullLever(late, "B", R9.Window + 0.6), "the same lever twice doesn't count")
+	local solo = R9.LeverDistance / MonsterTuning.PlayerSpeed + R9.LeverSeconds * 2
+	assert(solo <= R9.Window - 1.5, string.format("solo sprint %.1fs fits the window", solo))
+end)
+
+test("L09 fire grid covers exactly the kitchen and dining hall (restaurants stay safe)", function()
+	eq(R9.OriginX + R9.Cols * R9.Cell, -98, "east edge = hall wall")
+	eq(R9.OriginZ, -48, "south edge = restaurant fronts")
+	eq(R9.OriginZ + R9.Rows * R9.Cell, 48, "north edge")
+	local c, r = Rules.cellAt(-141, -57)
+	eq(c, nil, "a south restaurant is outside the grid")
+	c, r = Rules.cellAt(-249.9, -47.9)
+	eq(c, 1, "first column")
+	eq(r, 1, "first row")
+	local x, z = Rules.cellCenter(1, 1)
+	eq(x, -246, "centre x")
+	eq(z, -44, "centre z")
+end)
+
+test("L09 fire: spreads, respects protected and wet cells and the cap", function()
+	local grid = Rules.fireGrid()
+	assert(Rules.ignite(grid, 5, 5, 0), "lights")
+	assert(not Rules.ignite(grid, 5, 5, 0), "already burning")
+	grid.Protected[Rules.cellKey(grid, 6, 5)] = true
+	assert(not Rules.ignite(grid, 6, 5, 0), "protected")
+	eq(#Rules.spread(grid, 0, 0, function()
+		return 0
+	end), 0, "chance 0: no spread")
+	local out = Rules.extinguish(grid, 5, 5, 10)
+	eq(#out, 1, "put out")
+	eq(grid.Count, 0, "count")
+	assert(not Rules.ignite(grid, 5, 6, 10 + R9.WetSeconds - 1), "neighbour still wet")
+	assert(Rules.ignite(grid, 5, 6, 10 + R9.WetSeconds + 1), "dries out")
+	local full = Rules.fireGrid()
+	for i = 1, R9.Cols do
+		for j = 1, R9.Rows do
+			Rules.ignite(full, i, j, 0)
+		end
+	end
+	eq(full.Count, R9.MaxBurning, "never above the cap")
+end)
+
+test("L09 fire: closing valves slows and then stops the spread", function()
+	local last = math.huge
+	for closed = 0, R9.Valves do
+		local chance = Rules.spreadChance(closed)
+		assert(chance < last, "slower with each valve")
+		last = chance
+	end
+	eq(Rules.spreadChance(R9.Valves), 0, "stopped")
+	local grid = Rules.fireGrid()
+	Rules.ignite(grid, 10, 6, 0)
+	local i = 0
+	local lit = Rules.spread(grid, 0, 1, function()
+		i += 1
+		return if i % 2 == 0 then 0.1 else 0
+	end)
+	eq(#lit, 1, "chance 1 lights a neighbour")
+end)
+
+test("L09 fairness: fire hurts but can be crossed; an extinguisher clears a path", function()
+	local secondsToDown = 100 / R9.FireDamage * EnemyConfig.Combat.PlayerHitGrace
+	assert(secondsToDown >= 8, string.format("%.1fs standing in fire before going down", secondsToDown))
+	assert(R9.Charges * 5 >= 30, "one extinguisher can put out a lot of fire")
+	assert(R9.MaxBurning < R9.Cols * R9.Rows / 3, "most of the floor never burns at once")
+end)
+
+test("L09 module records every event its objectives need", function()
+	recordsAll(L09, "src/server/Levels/KitchenFire.luau")
+end)
+
 print("Rewards, achievements and saves")
 
 test("achievements: earned once from saved progress, paid once, survive save/load", function()

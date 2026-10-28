@@ -71,4 +71,160 @@ function FoodCourtRules.pickPossession(candidates: { { number } }, playerPositio
 	return best
 end
 
+-- ── Level 9 · Live Wires / Grease Fire ──────────────────────────────────────
+
+FoodCourtRules.L09 = {
+	-- day: cables cycle Live (sparking: no splicing, shocks anyone close) → Safe
+	Cables = 6, -- 5 to splice (team)
+	Live = 2,
+	Safe = 3.2,
+	SpliceSeconds = 1.4, -- must fit in the safe window, with time to react
+	ShockRadius = 5,
+	ShockDamage = 10,
+	-- the switchboard: both levers within Window seconds (one player can sprint it)
+	LeverDistance = 74,
+	LeverSeconds = 0.5,
+	Window = 8,
+	-- night: the fire grid over the grand kitchen and dining hall
+	Cols = 19,
+	Rows = 12,
+	Cell = 8,
+	OriginX = -250, -- west edge
+	OriginZ = -48, -- south edge
+	StartFires = 3,
+	SpreadEvery = 3,
+	SpreadChance = { 0.25, 0.15, 0.07, 0 }, -- by gas valves closed (0..3)
+	MaxBurning = 55,
+	WetSeconds = 25, -- a sprayed cell can't reignite for this long
+	FireDamage = 12, -- per hit (players can't be hit more than once per PlayerHitGrace)
+	Charges = 8, -- sprays per extinguisher
+	Valves = 3,
+	ValveSeconds = 3,
+	Tier = 2,
+}
+
+export type FireGrid = {
+	Cols: number,
+	Rows: number,
+	Burning: { [number]: boolean },
+	Wet: { [number]: number }, -- key → clock time it can burn again
+	Protected: { [number]: boolean }, -- never burns (extinguisher stations, valves)
+	Count: number,
+}
+
+function FoodCourtRules.fireGrid(): FireGrid
+	local r = FoodCourtRules.L09
+	return { Cols = r.Cols, Rows = r.Rows, Burning = {}, Wet = {}, Protected = {}, Count = 0 }
+end
+
+function FoodCourtRules.cellKey(grid: FireGrid, c: number, r: number): number?
+	if c < 1 or r < 1 or c > grid.Cols or r > grid.Rows then
+		return nil
+	end
+	return c + (r - 1) * grid.Cols
+end
+
+function FoodCourtRules.cellOf(grid: FireGrid, key: number): (number, number)
+	return (key - 1) % grid.Cols + 1, (key - 1) // grid.Cols + 1
+end
+
+-- World x/z → cell (or nil outside the grid); and a cell's centre.
+function FoodCourtRules.cellAt(x: number, z: number): (number?, number?)
+	local r = FoodCourtRules.L09
+	local c, row = math.floor((x - r.OriginX) / r.Cell) + 1, math.floor((z - r.OriginZ) / r.Cell) + 1
+	if c < 1 or row < 1 or c > r.Cols or row > r.Rows then
+		return nil, nil
+	end
+	return c, row
+end
+
+function FoodCourtRules.cellCenter(c: number, row: number): (number, number)
+	local r = FoodCourtRules.L09
+	return r.OriginX + (c - 0.5) * r.Cell, r.OriginZ + (row - 0.5) * r.Cell
+end
+
+-- Lights a cell; false if it's outside, already burning, protected, still wet or at the cap.
+function FoodCourtRules.ignite(grid: FireGrid, c: number, r: number, now: number): boolean
+	local key = FoodCourtRules.cellKey(grid, c, r)
+	if not key or grid.Burning[key] or grid.Protected[key] or grid.Count >= FoodCourtRules.L09.MaxBurning then
+		return false
+	end
+	if (grid.Wet[key] or 0) > now then
+		return false
+	end
+	grid.Burning[key] = true
+	grid.Count += 1
+	return true
+end
+
+local NEIGHBOURS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+
+-- One spread step: every burning cell may light one neighbour. random() → [0, 1).
+-- Returns the newly burning keys.
+function FoodCourtRules.spread(grid: FireGrid, now: number, chance: number, random: () -> number): { number }
+	local current = {}
+	for key in grid.Burning do
+		table.insert(current, key)
+	end
+	table.sort(current)
+	local lit = {}
+	for _, key in current do
+		if random() < chance then
+			local c, r = FoodCourtRules.cellOf(grid, key)
+			local d = NEIGHBOURS[math.floor(random() * 4) + 1]
+			if FoodCourtRules.ignite(grid, c + d[1], r + d[2], now) then
+				table.insert(lit, FoodCourtRules.cellKey(grid, c + d[1], r + d[2]) :: number)
+			end
+		end
+	end
+	return lit
+end
+
+-- A spray puts out the cell and its four neighbours and keeps them wet for WetSeconds.
+-- Returns the keys that were burning.
+function FoodCourtRules.extinguish(grid: FireGrid, c: number, r: number, now: number): { number }
+	local out = {}
+	for _, d in { { 0, 0 }, table.unpack(NEIGHBOURS) } do
+		local key = FoodCourtRules.cellKey(grid, c + d[1], r + d[2])
+		if key then
+			if grid.Burning[key] then
+				grid.Burning[key] = nil
+				grid.Count -= 1
+				table.insert(out, key)
+			end
+			grid.Wet[key] = now + FoodCourtRules.L09.WetSeconds
+		end
+	end
+	return out
+end
+
+function FoodCourtRules.spreadChance(valvesClosed: number): number
+	local chances = FoodCourtRules.L09.SpreadChance
+	return chances[math.clamp(valvesClosed, 0, #chances - 1) + 1]
+end
+
+-- A cable's state at clock time t: "Live" or "Safe", and seconds until it changes.
+function FoodCourtRules.cablePhase(t: number, offset: number): ("Live" | "Safe", number)
+	local r = FoodCourtRules.L09
+	local cycle = r.Live + r.Safe
+	local at = (t + offset) % cycle
+	if at < r.Live then
+		return "Live", r.Live - at
+	end
+	return "Safe", cycle - at
+end
+
+-- Pulling one of the two switchboard levers ("A" / "B"). Returns true when this pull
+-- completes the reset (the other lever was pulled within Window seconds).
+function FoodCourtRules.pullLever(pulled: { [string]: number }, lever: string, now: number): boolean
+	local other = if lever == "A" then "B" else "A"
+	local at = pulled[other]
+	if at and now - at <= FoodCourtRules.L09.Window then
+		table.clear(pulled)
+		return true
+	end
+	pulled[lever] = now
+	return false
+end
+
 return FoodCourtRules
