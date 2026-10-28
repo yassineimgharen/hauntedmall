@@ -364,6 +364,76 @@ test("L10 module records every event its objectives need", function()
 	recordsAll(L10, "src/server/Levels/Deliveries.luau")
 end)
 
+print("Level 11 · Cold Trail / Deep Freeze")
+
+local L11 = CampaignConfig.ById.L11
+local R11 = Rules.L11
+
+test("L11 day: prints, the hidden freezer and 3 logbooks clear it", function()
+	assert(play(L11.Day, { { "FrostPrintFound", 6 }, { "HiddenFreezerOpened", 1 }, { "FrozenLogRecovered", 3 } }), "cleared")
+	assert(not play(L11.Day, { { "FrostPrintFound", 6 }, { "FrozenLogRecovered", 3 } }), "freezer still sealed")
+	assert(R11.Prints > R11.PrintTarget and R11.Logs > R11.LogTarget, "spares")
+end)
+
+test("L11 night: melting is shared, escaping is personal; the clean bonus needs an escape", function()
+	local tracker = Logic.newTracker(L11.Night.Objectives)
+	Logic.record(tracker, "A", "IceWallMelted")
+	Logic.record(tracker, "B", "FreezerEscaped")
+	assert(Logic.requiredComplete(tracker, "B", true), "B escaped")
+	assert(not Logic.requiredComplete(tracker, "A", true), "A melted it but stayed inside")
+	assert(not table.find(Logic.optionalDone(tracker, "A"), "nofreeze"), "never freezing isn't enough on its own")
+	Logic.record(tracker, "B", "CleanEscape")
+	assert(table.find(Logic.optionalDone(tracker, "B"), "nofreeze"), "escaped without freezing")
+end)
+
+local function secondsUntilFrozen(place)
+	local cold, t = 0, 0
+	while cold < 1 and t < 600 do
+		cold = Rules.coldStep(cold, 0.25, place)
+		t += 0.25
+	end
+	return t
+end
+
+test("L11 cold: the hidden freezer gives time to work; heat always wins", function()
+	local freezer = secondsUntilFrozen({ InHeat = false, InHiddenFreezer = true, InWalkIn = false })
+	assert(freezer >= 20, string.format("%.1fs in the hidden freezer", freezer))
+	assert(freezer >= R11.ChipSeconds * 2 + 8, "two logbooks per trip")
+	local warm = Rules.coldStep(1, 1, { InHeat = true, InHiddenFreezer = true, InWalkIn = false, WraithDistance = 1 })
+	eq(warm, 1 - R11.Fall.Heat, "heat lamps warm even next to the wraith")
+	eq(Rules.coldStep(0.5, 1, { InHeat = false, InHiddenFreezer = false, InWalkIn = false }), 0.5 - R11.Fall.Normal, "warms slowly elsewhere")
+	eq(Rules.coldStep(0, 1, { InHeat = false, InHiddenFreezer = false, InWalkIn = false }), 0, "never negative")
+end)
+
+test("L11 wraith: escapable chill, a dodgeable breath, light slows it, never outruns you", function()
+	local close = secondsUntilFrozen({ InHeat = false, InHiddenFreezer = false, InWalkIn = false, WraithDistance = 3 })
+	assert(close >= 7, string.format("%.1fs right next to it before freezing", close))
+	local near = secondsUntilFrozen({ InHeat = false, InHiddenFreezer = false, InWalkIn = false, WraithDistance = 15 })
+	assert(near > close, "further away chills slower")
+	local w = MonsterTuning.Wraith
+	assert((w.BreathWidth / 2 + 1) / MonsterTuning.PlayerSpeed < w.BreathWarn * 0.5, "breath lane is dodgeable")
+	assert(EnemyConfig.Types.FrostWraith.LightScale == 0, "light can't kill it")
+	assert(EnemyConfig.Types.FrostWraith.WalkSpeed * w.LitSlow < 6, "light slows it to a crawl")
+	assert(R11.FrozenSeconds <= 3, "frozen briefly")
+end)
+
+test("L11 balance: one wraith solo, two for bigger teams; the ice takes teamwork to scale", function()
+	eq(Rules.wraithCount(1), 1, "solo")
+	eq(Rules.wraithCount(2), 1, "duo")
+	eq(Rules.wraithCount(4), 2, "team")
+	local solo = Rules.iceWallSeconds(1)
+	-- solo: a full battery, then waiting for it to recharge, in turns
+	local battery = EnemyConfig.Flashlight
+	local cycle = battery.BatterySeconds + battery.RechargeDelay + 1 / battery.RechargePerSecond
+	local soloTime = math.ceil(solo / battery.BatterySeconds) * cycle
+	assert(soloTime <= L11.Night.Duration * 0.5, string.format("solo melts it in ~%ds", soloTime))
+	assert(Rules.iceWallSeconds(4) / 4 < solo, "per person it gets easier with a team")
+end)
+
+test("L11 module records every event its objectives need", function()
+	recordsAll(L11, "src/server/Levels/HiddenFreezer.luau")
+end)
+
 print("Rewards, achievements and saves")
 
 test("achievements: earned once from saved progress, paid once, survive save/load", function()

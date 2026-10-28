@@ -276,4 +276,68 @@ function FoodCourtRules.initialMimics(playerCount: number, wrongDeliveries: numb
 	return math.min(2 + math.floor((players(playerCount) - 1) / 2) + wrongDeliveries, 6)
 end
 
+-- ── Level 11 · Cold Trail / Deep Freeze ─────────────────────────────────────
+
+FoodCourtRules.L11 = {
+	Prints = 9, -- frost footprints (revealed by light), 6 needed
+	PrintTarget = 6,
+	PrintRevealSeconds = 0.3,
+	IceLeverSeconds = 5, -- of beam to melt the ice off the secret lever
+	LeverHold = 2,
+	Logs = 4, -- frozen logbooks in the hidden freezer, 3 needed
+	LogTarget = 3,
+	ChipSeconds = 3,
+	-- the cold meter (0..1): per second
+	Rise = { HiddenFreezer = 1 / 25, WalkIn = 1 / 70, WraithNear = 0.07, WraithClose = 0.12 },
+	Fall = { Normal = 0.05, Heat = 0.3 },
+	Breath = 0.3, -- added by a frost breath hit
+	AuraRadius = 18, -- within this of the wraith you chill (WraithClose under half of it)
+	HeatRadius = 9,
+	FrozenSeconds = 2.5, -- frozen solid at a full meter, then thawed to ThawTo
+	ThawTo = 0.7,
+	ChillDamage = 6, -- every 2 s while the meter is full
+	IceWallSeconds = 20, -- of beam to melt the exit's ice (shared)
+	IceWallPerPlayer = 6,
+	Tier = 4,
+}
+
+export type ColdPlace = {
+	InHeat: boolean,
+	InHiddenFreezer: boolean,
+	InWalkIn: boolean,
+	WraithDistance: number?, -- nearest wraith (nil: none)
+}
+
+-- The cold meter after dt seconds in `place`. Heat always wins; a wraith's aura stacks
+-- with a freezer's chill.
+function FoodCourtRules.coldStep(cold: number, dt: number, place: ColdPlace): number
+	local r = FoodCourtRules.L11
+	if place.InHeat then
+		return math.max(0, cold - r.Fall.Heat * dt)
+	end
+	local rise = 0
+	if place.InHiddenFreezer then
+		rise += r.Rise.HiddenFreezer
+	elseif place.InWalkIn then
+		rise += r.Rise.WalkIn
+	end
+	local d = place.WraithDistance
+	if d and d <= r.AuraRadius then
+		rise += if d <= r.AuraRadius / 2 then r.Rise.WraithClose else r.Rise.WraithNear
+	end
+	if rise <= 0 then
+		return math.max(0, cold - r.Fall.Normal * dt)
+	end
+	return math.min(1, cold + rise * dt)
+end
+
+function FoodCourtRules.wraithCount(playerCount: number): number
+	return if players(playerCount) >= 3 then 2 else 1
+end
+
+function FoodCourtRules.iceWallSeconds(playerCount: number): number
+	local r = FoodCourtRules.L11
+	return r.IceWallSeconds + r.IceWallPerPlayer * (players(playerCount) - 1)
+end
+
 return FoodCourtRules

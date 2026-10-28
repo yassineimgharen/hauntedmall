@@ -24,6 +24,8 @@
 --   SlimeScrubbed RestaurantReopened ApplianceExorcised ExorcismHelped CartWrecked (GrandReopening)
 --   CableSpliced SwitchboardReset GasValveClosed FireEscaped FireExtinguished (KitchenFire)
 --   ParcelSorted ParcelInspected WrongCall PerfectSort DriverLogFound NestBurned ParcelCreatureKilled (Deliveries)
+--   FrostPrintFound HiddenFreezerOpened FrozenLogRecovered FrozenSolid IceWallMelted FreezerEscaped
+--   CleanEscape (HiddenFreezer)
 
 local CampaignConfig = {}
 
@@ -94,6 +96,13 @@ CampaignConfig.Events = {
 	DriverLogFound = true,
 	NestBurned = true,
 	ParcelCreatureKilled = true,
+	FrostPrintFound = true,
+	HiddenFreezerOpened = true,
+	FrozenLogRecovered = true,
+	FrozenSolid = true,
+	IceWallMelted = true,
+	FreezerEscaped = true,
+	CleanEscape = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -1051,13 +1060,94 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(
-		11,
-		"Supply Run",
-		"Escort a supply cart through the court.",
-		"Rat King's Court",
-		"Swarms of small, fast enemies and traps."
-	),
+	{
+		Id = "L11",
+		Index = 11,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1200, XP = 1300 },
+		Modules = { "HiddenFreezer" },
+		Day = {
+			Name = "Cold Trail",
+			Teaser = "Follow frost footprints only light can see, open a hidden freezer, recover frozen logbooks.",
+			Story = "Frost Bite Creamery's staff left frozen footprints that lead somewhere nobody's supposed to know about.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "prints",
+					Text = "Follow the frost footprints",
+					Event = "FrostPrintFound",
+					Target = 6,
+					Scope = "Team",
+					Hint = "Start at Frost Bite Creamery (north row). Sweep your flashlight over the floor to reveal the prints.",
+					Marker = { Tag = "FrostPrintNext", Label = "👣 SHINE YOUR LIGHT HERE" },
+				},
+				{
+					Id = "open",
+					Text = "Open the hidden freezer",
+					Event = "HiddenFreezerOpened",
+					Scope = "Team",
+					Hint = "Walk-in freezer, west wall: melt the ice off the lever with your flashlight, then hold E to pull it.",
+					Marker = { Tag = "FrozenLever", Label = "🧊 MELT & PULL" },
+				},
+				{
+					Id = "logs",
+					Text = "Recover the frozen logbooks",
+					Event = "FrozenLogRecovered",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Inside the hidden freezer: hold E to chip a logbook out of its ice. Warm up at the heat lamp before your 🥶 meter fills!",
+					Marker = { Tag = "FrozenLog", Label = "📓 CHIP THE ICE" },
+				},
+				{
+					Id = "mylogs",
+					Text = "Recover 2 logbooks yourself",
+					Event = "FrozenLogRecovered",
+					Target = 2,
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "Deep Freeze",
+			Teaser = "Escape a Frost Wraith that light can't hurt. Heat lamps hide you; melt the iced exit.",
+			Story = "Something walked out of the hidden freezer. Your light can't hurt it, and every exit is freezing over.",
+			Duration = 210,
+			Objectives = {
+				{
+					Id = "melt",
+					Text = "Melt the iced-over exit",
+					Event = "IceWallMelted",
+					Scope = "Team",
+					Hint = "End of the maintenance corridor: hold your flashlight on the ice. The cracking draws the wraith. Take turns!",
+					Marker = { Tag = "IceWall", Label = "🔥 MELT THE ICE" },
+				},
+				{
+					Id = "escape",
+					Text = "Escape through the north exit",
+					Event = "FreezerEscaped",
+					Hint = "Through the melted exit onto the landing outside.",
+					Marker = { Tag = "EscapeZone", Label = "🚪 ESCAPE" },
+				},
+				{
+					Id = "nofreeze",
+					Text = "Escape without ever freezing solid",
+					Event = "CleanEscape",
+					Optional = true,
+				},
+				{ Id = "nodown", Text = "Don't get knocked down", Kind = "Avoid", Event = "Downed", Optional = true },
+			},
+			Rules = {
+				Tier = 4,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Freezer",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "❄️ The Frost Wraith is loose! Light only slows it. Hide in heat lamps' glow and melt the north exit!",
+			},
+		},
+	},
 	planned(
 		12,
 		"Pipe Dreams",
