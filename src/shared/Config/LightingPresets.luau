@@ -108,6 +108,69 @@ local LightingPresets: { [string]: Preset } = {
 		Bloom = { Intensity = 1, Size = 24, Threshold = 0.9 },
 		SunRays = { Intensity = 0, Spread = 0.55 },
 	},
+
+	-- Hunt (Night 5, the Stalker): red emergency lighting. Readable, but every shadow could
+	-- be it.
+	Hunt = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.5,
+			Ambient = rgb(70, 18, 24),
+			OutdoorAmbient = rgb(60, 20, 30),
+			ColorShift_Top = rgb(255, 80, 80),
+			ColorShift_Bottom = rgb(40, 0, 10),
+			EnvironmentDiffuseScale = 0.3,
+			EnvironmentSpecularScale = 0.8,
+			ExposureCompensation = 0.1,
+		},
+		Atmosphere = {
+			Density = 0.42,
+			Offset = 0.15,
+			Color = rgb(90, 20, 30),
+			Decay = rgb(30, 4, 10),
+			Glare = 0,
+			Haze = 2.2,
+		},
+		ColorCorrection = {
+			TintColor = rgb(255, 196, 196),
+			Saturation = -0.05,
+			Contrast = 0.28,
+			Brightness = -0.01,
+		},
+		Bloom = { Intensity = 0.9, Size = 24, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Queen (Night 7, boss): deep royal violet with a sickly green edge.
+	Queen = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.8,
+			Ambient = rgb(52, 22, 84),
+			OutdoorAmbient = rgb(40, 60, 50),
+			ColorShift_Top = rgb(190, 90, 255),
+			ColorShift_Bottom = rgb(20, 60, 30),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.2,
+		},
+		Atmosphere = {
+			Density = 0.4,
+			Offset = 0.2,
+			Color = rgb(70, 30, 120),
+			Decay = rgb(20, 50, 30),
+			Glare = 0,
+			Haze = 2,
+		},
+		ColorCorrection = {
+			TintColor = rgb(220, 205, 255),
+			Saturation = 0.2,
+			Contrast = 0.25,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 1, Size = 30, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
 }
 
 return LightingPresets

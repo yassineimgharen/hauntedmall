@@ -17,6 +17,7 @@ local RELIABLE = {
 	"SaveSettings",
 	"RequestPurchase",
 	"VoteLevel",
+	"SubmitCode",
 	-- server → client
 	"Notify",
 	"NightResults",

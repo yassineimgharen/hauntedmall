@@ -26,6 +26,35 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
+## §C3: Campaign Levels 5–7 (test after §C2)
+
+Shortcut: Workspace `MissionTest_Level` = `L05` / `L06` / `L07` before Play. Play days at normal speed (240 s). `MissionTest_CompleteStage` + `SkipPhase` jump to a night.
+
+**Level 5: Restricted Access / The Stalker**
+- [ ] C3-1 Day: 3 glass booths ("⚠ RESTRICTED · RED/GREEN/BLUE") with red lasers blinking in a rhythm. Walk through while a laser is lit: −15, knocked out of the booth, and ★ "Never trip a laser" fails. Time it and grab the card: toast "… card. It reads: N".
+- [ ] C3-2 Vault (NW atrium): the keypad (E) opens a 0–9 pad showing the colour order and the digits found. Wrong code: "ACCESS DENIED", 3 s lockout. Right code: the door vanishes, the lamp turns green, and you can read the records inside (2 s hold).
+- [ ] C3-3 Night: red lighting; a noise meter at the bottom; no crawler waves. After about 8 s, "You hear something tall…". The Stalker (tall, black, red mouth) wanders.
+- [ ] C3-4 Press C (or 🤫): you walk slowly and the meter reads "quiet steps". Walking normally near it reads "LOUD", and it turns and rushes you (mouth glows). When it rears up you get the red "⚠ DODGE" flash. Getting caught does −45, "Times caught (1/2 max)".
+- [ ] C3-5 Lockers: E "Hide" puts you inside (the meter says HIDDEN) and it can't catch you. After 25 s, "the locker door creaks open". Another player sees no prompt on your locker.
+- [ ] C3-6 Radios: E makes it flash for 8 s and the Stalker heads there. It can be used again after 30 s.
+- [ ] C3-7 Silence all 4 music boxes (3 s hold, ideally while it's away): "The music stops…", and it moves slower. Dawn: LEVEL COMPLETE (+$550 · 600 XP); 3 catches fails it.
+
+**Level 6: Final Preparations / Rescue Mission**
+- [ ] C3-8 Day: walk over glinting scrap piles (no prompt) for "+1 scrap (team pool)". The workbench (west of the entrance) shows the pool; with 3 or more, hold E to get a kit; place it at one of the 3 white rings by the entrance and a tower appears.
+- [ ] C3-9 Hold your flashlight on a faint purple symbol on a wall (atrium west, atrium east, East Wing end) for about 2 s: it lights up with a message.
+- [ ] C3-10 Night: green EVAC ring at the entrance; 4 white cocoons ("🆘 Help me!"), each with a crawler nearby. Hold E 3 s to cut free, and the shopper follows you. Die while escorting: "Don't leave me here!" and "Lead Me" (E) for anyone.
+- [ ] C3-11 A shopper entering the ring ticks "Bring shoppers to the EVAC ring (n/3)" and waits there. "Crawlers caught the scent…" groups come for followers and waiting shoppers. Day-6 towers glow and burn crawlers near the ring.
+- [ ] C3-12 "Evac van in 30 seconds": stand in the ring at dawn to get "Be at the exit" ✅. LEVEL COMPLETE (+$650 · 700 XP).
+
+**Level 7: The Warning / The Shadow Queen**
+- [ ] C3-13 Day: 3 gold cannons with cyan rings around the fountain. Stand in a ring: "🔆 n%" rises (about 20 s solo, faster with friends), then CHARGED.
+- [ ] C3-14 North of the fountain: a 5×5 grid with a light source on the west and a crystal on the north. Rotating mirrors (E) redraws the beam. Correct route: the crystal blazes cyan and the toast says PRISM LENS earned.
+- [ ] C3-15 Night: about 6 s in comes the "THE SHADOW QUEEN" banner. A huge crowned crawler hovers over the atrium; the boss bar shows "SHIELDED". Flashlights do nothing yet.
+- [ ] C3-16 Hold E at a charged cannon (1.5 s): a gold beam hits her and the bar says "SHIELD DOWN" for 8 s; flashlights now drain her HP (Prism Lens holders noticeably faster). The cannon recharges on its own (about 25 s).
+- [ ] C3-17 Attacks: a red circle under someone, then a slam 2.4 s later (−30). Brood: 3 crawlers. Below 66 %: "PHASE 2", screen goes dark for 6 s (cannons won't fire) and double slams. Below 33 %: a purple bar appears, then sweeps the floor; jump it or take −25.
+- [ ] C3-18 Defeat her: "QUEEN DEFEATED" banner, crawlers vanish. At dawn: LEVEL COMPLETE plus "👑 CHAPTER 1 COMPLETE! +$1,000 · +1,000 XP · Title: Queen Slayer", then "Level 8 … coming". If she survives to dawn: LEVEL FAILED and "The Queen retreats…".
+- [ ] C3-19 Regression: Levels 3–4 night shoppers still move normally (their pathfinding moved to the shared NpcMover).
+
 ## §C2: Campaign Levels 3–4 (test after §C)
 
 Fastest route: set Workspace `MissionTest_Level` = `L03` (or `L04`) **before** Play. Play Day 3 and Day 4 without `FastPhases` (240 s days). For night-only checks, finish the day with `MissionTest_CompleteStage` = true, then `SkipPhase`.

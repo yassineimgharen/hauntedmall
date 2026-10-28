@@ -305,6 +305,7 @@ local function startNight()
 	end
 	publishFuses()
 	ReplicatedStorage:SetAttribute("Blackout", rules.Blackout == true)
+	ReplicatedStorage:SetAttribute("NightPreset", rules.Preset or "")
 	EnemyService.SetBehavior({
 		PatrolPoints = if rules.Patrol then rules.PatrolPoints else nil,
 		PatrolShare = 0.6,
@@ -315,7 +316,9 @@ local function startNight()
 		if rules.Blackout then "danger" else "warning"
 	)
 	task.spawn(spawnGuards, token)
-	task.spawn(runWaves, token)
+	if not rules.NoWaves then
+		task.spawn(runWaves, token)
+	end
 	if rules.Fuses then
 		task.spawn(runSafeZones, token)
 	end
@@ -327,6 +330,7 @@ local function startDawn()
 	EnemyService.SetBehavior(nil)
 	ReplicatedStorage:SetAttribute("Wave", 0)
 	ReplicatedStorage:SetAttribute("Blackout", false)
+	ReplicatedStorage:SetAttribute("NightPreset", "")
 	table.clear(powered)
 	publishPower()
 	local night = rules.LevelIndex or GameStateService.GetNight()

@@ -1,6 +1,6 @@
 # Campaign: Unique Day/Night Levels
 
-_2026-10-27. Implemented: campaign framework + **Levels 1–4**. Levels 5–42 are planned (shown as "coming soon" in game). Nothing here has been run in Studio yet; see `TESTING.md` §C (Levels 1–2) and §C2 (Levels 3–4)._
+_2026-10-28. Implemented: campaign framework + **all of Chapter 1 (Levels 1–7, incl. the Shadow Queen boss)**. Levels 8–42 are planned ("coming soon" in game). Nothing here has been run in Studio yet; see `TESTING.md` §C (1–2), §C2 (3–4), §C3 (5–7)._
 
 ## 1. Audit (before this change)
 | Area | What existed |
@@ -72,6 +72,15 @@ The unit test "day 2 / night 2 share no required objective events with day 1 / n
 | New enemy | **Phantom Shopper**: pale, translucent, cyan eyes; 30 HP, faster wind-up (0.5 s) and short cooldown, still slower than players | none (crawlers get a new behaviour: marching on objectives, being lured) |
 | Reward | $350 · 400 XP | $450 · 500 XP |
 
+## 3c. Levels 5, 6 and 7
+Each day and night introduces a mechanic no earlier level used. The spec test "no implemented level repeats a required objective event" enforces that no required objective is reused.
+
+| | Day | Night |
+|---|---|---|
+| **5** | *Restricted Access*: **timing hazards plus a code puzzle**. 3 glass booths (NE atrium, SW atrium, mid East Wing), each with 3 laser gates blinking on staggered timers (zap: 15 damage and knock-back). The access card at the back shows one digit. The vault (NW atrium) keypad wants the digits in a random colour order (keypad UI). Inside, the security records explain tonight | *The Stalker*: **stealth**. An unkillable blind hunter that tracks sound. The server measures each player's real movement: walking is heard from 45 studs, sneaking (Ctrl / C / 🤫, speed 7) from 10, standing still is silent, jumping from 30. It hunts anyone it hears within 18 studs, and a catch is telegraphed (0.9 s). Counter: **lockers** (hide up to 25 s), **radios** (lure it for 8 s), sneaking. Objective: silence 4 music boxes (3 s hold); getting caught more than twice fails. Red emergency lighting, a noise meter and a heartbeat when it's within 35 studs |
+| **6** | *Final Preparations*: **free-roam collection, crafting, scanning**. 14 random scrap piles collected by walking over them (team pool); the workbench crafts floodlight kits (3 scrap each) carried to 3 tower spots; 3 wall markings are invisible until held in a flashlight beam for 2 s, and they reveal the boss's lore | *Rescue Mission*: **escort and extraction**. 4 cocooned shoppers (with guards) around the mall; cut one free (3 s) and it follows you, and if you fall anyone can lead it on. Hunter crawlers target escorted and waiting shoppers (80 HP). Bring 3 into the EVAC ring and lose at most 1. In the last 30 s the van is announced, and you must be in the ring at dawn. Day-6 floodlights burn crawlers around the ring |
+| **7** | *The Warning*: **zone capture plus a light puzzle**. 3 light cannons charge while players stand in their rings (20 s solo, faster together). North of the fountain, rotating mirrors steers a visible beam; reaching the crystal reveals the boss and gives everyone present the **Prism Lens** (persisted equipment: +50 % light damage vs bosses) | *The Shadow Queen*: **boss**. HP 700 + 350 per player; her shield drops for 8 s only when a charged cannon fires (cannons recharge on their own after firing). Phase 1: telegraphed slams (red circle) and brood summons; phase 2 (below 66 %): double slams and darkness pulses that lock the cannons; phase 3 (below 33 %): a sweeping floor beam to jump. Boss bar UI. First clear also pays the **Chapter 1 reward** ($1,000 · 1,000 XP · title "Queen Slayer") and marks the chapter complete |
+
 ## 4. Completion, failure, retry
 - **Day** (checked at dusk): if your required day objectives are done, `DayCleared[level]` is saved. This is permanent, so a failed night never forces you to redo the day.
 - **Night** (checked at dawn): if the required night objectives are done and the day is cleared (now or earlier), the level is complete.
@@ -119,7 +128,10 @@ Chapter 1 levels 3–7 follow your brief exactly. Each later level's mechanic is
 Full per-level names and teasers: `CampaignConfig.luau`.
 
 ## 8. Limitations (honest)
-- **Levels 5–42** are configuration and planning only. Completing Level 4 shows "Level 5 coming in a future update", and the server then defaults to Free Shift.
+- **Levels 8–42** (Chapters 2–6) are configuration and planning only. Clearing Level 7 shows "Level 8 … coming in a future update", and the server then defaults to Free Shift.
+- **No audio assets yet.** The Stalker is about sound, but the game has no real sound IDs (placeholders in `AudioConfig`), so the noise meter and heartbeat pulse carry it visually. Adding footstep, music-box and radio sounds is the biggest feel upgrade available.
+- **The Queen** is a scaled-up crawler with a crown that glides (no walk animation); a sculpted model is in `ASSETS.md`'s wish list.
+- The **Prism Lens** and the **"Queen Slayer" title** are saved but not yet shown anywhere besides toasts (no inventory or nameplate UI yet).
 - **Chapter rewards, achievements and equipment unlocks** aren't built yet; level rewards are cash and XP. They're planned with Level 7 (first boss) and the progression pass.
 - Day/night **music** for blackout and level stingers are still placeholders (`AudioConfig`).
 - **Blackout zones** are by position: x ≥ 70 is the East Wing, y ≥ 18 is the upper level, everything else the atrium. Lights in unusual places may belong to the "wrong" zone.

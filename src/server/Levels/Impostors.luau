@@ -8,7 +8,6 @@
 --           pale crawler (an enemy that must be burned). A real shopper lit for ACCUSE
 --           seconds shields their eyes: that's a false accusation (optional objective).
 
-local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
@@ -17,6 +16,7 @@ local CustomerService = require(script.Parent.Parent.Services.CustomerService)
 local EnemyService = require(script.Parent.Parent.Services.EnemyService)
 local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
+local NpcMover = require(script.Parent.NpcMover)
 
 local Impostors = {}
 
@@ -66,11 +66,8 @@ type Shopper = {
 	Lit: number,
 	LastLit: number,
 	AccusedAt: number,
-	Path: Path,
-	Goal: Vector3?,
-	Waypoints: { Vector3 }?,
-	WaypointIndex: number,
-	RepathAt: number,
+	Mover: NpcMover.Mover,
+	Goal: Vector3?, -- current wander destination
 	IdleUntil: number,
 	-- phantoms
 	Victim: Shopper?,
@@ -139,39 +136,6 @@ end
 
 -- ── movement ────────────────────────────────────────────────────────────────
 
-local function steer(shopper: Shopper, goal: Vector3, now: number)
-	if not shopper.Goal or (shopper.Goal - goal).Magnitude > 4 or now > shopper.RepathAt then
-		shopper.Goal = goal
-		shopper.RepathAt = now + 3
-		shopper.WaypointIndex = 1
-		shopper.Waypoints = nil
-		local path = shopper.Path
-		local ok = pcall(function()
-			path:ComputeAsync(shopper.Root.Position, goal)
-		end)
-		if ok and path.Status == Enum.PathStatus.Success then
-			local points = {}
-			for i, waypoint in path:GetWaypoints() do
-				if i > 1 then
-					table.insert(points, waypoint.Position)
-				end
-			end
-			shopper.Waypoints = points
-		end
-	end
-	local waypoints = shopper.Waypoints
-	if waypoints then
-		local waypoint = waypoints[shopper.WaypointIndex]
-		if waypoint and flatDistance(shopper.Root.Position, waypoint) < 2.5 then
-			shopper.WaypointIndex += 1
-			waypoint = waypoints[shopper.WaypointIndex]
-		end
-		shopper.Humanoid:MoveTo(waypoint or goal)
-	else
-		shopper.Humanoid:MoveTo(goal)
-	end
-end
-
 local function randomPoint(from: Vector3): Vector3
 	for _ = 1, 6 do
 		local point = POINTS[rng:NextInteger(1, #POINTS)]
@@ -191,13 +155,13 @@ local function wander(shopper: Shopper, now: number)
 	if not goal or flatDistance(shopper.Root.Position, goal) < 3 then
 		shopper.IdleUntil = now + rng:NextNumber(2, 5)
 		shopper.Goal = randomPoint(shopper.Root.Position)
-		shopper.RepathAt = 0
+		shopper.Mover:reset()
 		if not shopper.Phantom and rng:NextNumber() < 0.3 then
 			say(shopper, CHATTER[rng:NextInteger(1, #CHATTER)])
 		end
 		return
 	end
-	steer(shopper, goal, now)
+	shopper.Mover:steer(goal)
 end
 
 local function nearestPlayerRoot(position: Vector3, range: number): BasePart?
@@ -260,7 +224,7 @@ local function onLit(shopper: Shopper, player: Player, dt: number)
 		Notify.player(player, "That was a real shopper. Watch who's following whom before you shine.", "warning")
 		shopper.FleeUntil = now + 3
 		shopper.Goal = randomPoint(shopper.Root.Position)
-		shopper.RepathAt = 0
+		shopper.Mover:reset()
 	end
 end
 
@@ -327,7 +291,7 @@ local function thinkPhantom(shopper: Shopper, now: number)
 			if distance < 14 then
 				shopper.Humanoid:MoveTo(victim.Root.Position)
 			else
-				steer(shopper, victim.Root.Position, now)
+				shopper.Mover:steer(victim.Root.Position)
 			end
 		end
 		if distance < 10 and now - victim.PanicAt > 6 then
@@ -335,7 +299,7 @@ local function thinkPhantom(shopper: Shopper, now: number)
 			say(victim, "😰 Someone's following me!")
 			victim.FleeUntil = now + 2.5
 			victim.Goal = randomPoint(victim.Root.Position)
-			victim.RepathAt = 0
+			victim.Mover:reset()
 		end
 		return
 	end
@@ -418,14 +382,11 @@ function Impostors.StartNight()
 			Bubble = npc.Bubble,
 			Phantom = phantom,
 			Gone = false,
-			Path = PathfindingService:CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = false }),
+			Mover = NpcMover.new(npc.Humanoid, npc.Root),
 			Lit = 0,
 			LastLit = 0,
 			AccusedAt = 0,
 			Goal = nil,
-			Waypoints = nil,
-			WaypointIndex = 1,
-			RepathAt = 0,
 			IdleUntil = now + rng:NextNumber(0, 3),
 			Victim = nil,
 			StalkUntil = 0,

@@ -91,7 +91,10 @@ local function defaultData(): { [string]: any }
 			Completed = {}, -- [levelId] = unix time of the first clear
 			DayCleared = {}, -- [levelId] = true once that level's day objectives were met
 			OptionalDone = {}, -- ["L01/serve6"] = true (optional bonus XP paid once)
+			Chapters = {}, -- [chapterIndex] = unix time the chapter's final level was first cleared
 		},
+		Equipment = {}, -- [itemId] = true, e.g. PrismLens (earned in the campaign, never sold)
+		Title = "", -- shown title earned from chapter rewards
 		-- Purchase ledger (see MonetizationService). Granting a product and recording its
 		-- PurchaseId happen in the same profile write, so a receipt can never be granted twice.
 		ProcessedReceipts = {}, -- [PurchaseId] = unix time granted (real Roblox receipts only)
@@ -146,7 +149,10 @@ local function sanitize(data: { [string]: any })
 		or type(campaign.DayCleared) ~= "table"
 		or type(campaign.OptionalDone) ~= "table"
 	then
-		data.Campaign = { Completed = {}, DayCleared = {}, OptionalDone = {} }
+		data.Campaign = { Completed = {}, DayCleared = {}, OptionalDone = {}, Chapters = {} }
+	end
+	if type(data.Equipment) ~= "table" then
+		data.Equipment = {}
 	end
 end
 

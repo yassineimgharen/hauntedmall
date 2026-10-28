@@ -1,8 +1,17 @@
 # Status Report
 
-_Last updated: 2026-10-27._
+_Last updated: 2026-10-28._
 
-## Current: Campaign Levels 3–4
+## Current: Campaign Levels 5–7 (Chapter 1 complete)
+Static checks ✅ · unit tests 36/36 ✅ (19 campaign incl. mirror puzzle, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C3; §C and §C2 are also still untested).
+
+**Added:** `Levels/RestrictedAccess` (laser booths, vault keypad), `Levels/Stalker` (sound-hunting AI, noise, lockers, radios, music boxes), `Levels/Preparations` (scrap, workbench, floodlights, flashlight-scanned markings), `Levels/Rescue` (cocoons, escort, EVAC ring), `Levels/ShadowQueen` (cannon capture, mirror puzzle, Prism Lens, 3-phase boss), `Levels/MirrorGrid` (pure, tested), `Levels/NpcMover` (shared pathing), client `StealthController`, `KeypadPanel`, `BossBar`, lighting presets Hunt and Queen.
+**Changed:** `CampaignConfig` (L05–L07, chapter reward), `MissionService` (BeforeNightEnd hook, chapter rewards, equipment/title sync), `NightService` (no-wave nights, per-level preset), `DataService` (Equipment, Title, Campaign.Chapters), `Impostors` (uses NpcMover), `Carry` (floodlight kit), `PromptController` (locker occupancy), `LightingController`, `UIController`, `Net` (`SubmitCode`).
+**Next (after your test):** Chapter 2 (Food Court, Levels 8–14). It needs a new area to be built; best started once Chapter 1 has been played.
+
+---
+
+## Previous: Campaign Levels 3–4
 Static checks ✅ · unit tests 34/34 ✅ (17 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C2; Levels 1–2 in §C are also still untested).
 
 **Added:** `Levels/MissingDelivery` (clues, cages, crates, van), `Levels/Impostors` (real vs Phantom shoppers), `Levels/SecuritySystem` (cameras, terminals, alarms, barricades, strike groups), `Levels/Carry` (shared carrying), `CameraFeed` UI, Phantom Shopper enemy.

@@ -59,8 +59,14 @@ local function poweredZones(): { [string]: boolean }?
 	return zones
 end
 
+-- Blackout (Night 2) and the Queen's darkness pulse win; then the level's own preset
+-- (ReplicatedStorage NightPreset, e.g. "Hunt"); otherwise the standard night.
 local function nightPreset(): string
-	return if ReplicatedStorage:GetAttribute("Blackout") == true then "Blackout" else "Night"
+	if ReplicatedStorage:GetAttribute("Blackout") == true or ReplicatedStorage:GetAttribute("BossDarkness") == true then
+		return "Blackout"
+	end
+	local custom = ReplicatedStorage:GetAttribute("NightPreset")
+	return if type(custom) == "string" and LightingPresets[custom] then custom else "Night"
 end
 
 local function reducedEffects(): boolean
@@ -279,6 +285,13 @@ function LightingController.Start()
 	ReplicatedStorage:GetAttributeChangedSignal("PoweredZones"):Connect(function()
 		task.spawn(onPowerChanged)
 	end)
+	for _, name in { "NightPreset", "BossDarkness" } do
+		ReplicatedStorage:GetAttributeChangedSignal(name):Connect(function()
+			if isNight then
+				applyPreset(nightPreset(), if name == "BossDarkness" then 0.4 else 2)
+			end
+		end)
+	end
 	task.spawn(flickerLoop)
 end
 

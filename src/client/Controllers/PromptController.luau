@@ -62,7 +62,25 @@ local function bindCarry(prompt: Instance)
 	end
 end
 
+-- A locker someone else is hiding in shows no prompt to you.
+local function bindLocker(prompt: Instance)
+	if not prompt:IsA("ProximityPrompt") then
+		return
+	end
+	local function refreshLocker()
+		local occupant = prompt:GetAttribute("Occupant") or 0
+		prompt.Enabled = occupant == 0 or occupant == player.UserId
+	end
+	prompt:GetAttributeChangedSignal("Occupant"):Connect(refreshLocker)
+	refreshLocker()
+end
+
 function PromptController.Start()
+	for _, prompt in CollectionService:GetTagged("LockerPrompt") do
+		bindLocker(prompt)
+	end
+	CollectionService:GetInstanceAddedSignal("LockerPrompt"):Connect(bindLocker)
+
 	for _, prompt in CollectionService:GetTagged("CarryPrompt") do
 		bindCarry(prompt)
 	end

@@ -15,6 +15,11 @@
 --   PhantomUnmasked PhantomDefeated ShopperTaken FalseAccusation (Impostors night mechanic)
 --   CameraRepaired TerminalActivated AlarmArmed BarricadeBuilt (SecuritySystem day)
 --   TerminalLost AlarmUsed CamerasViewed AttackRepelled (SecuritySystem night)
+--   CardFound CodeEntered RecordsFound LaserTripped (RestrictedAccess day)
+--   MusicBoxSilenced Caught DecoyUsed HidInLocker (Stalker night)
+--   ScrapCollected FloodlightBuilt MarkingRevealed (Preparations day)
+--   ShopperRescued EvacueeLost Escaped ShopperFreed (Rescue night)
+--   CannonCharged CannonHelped LightPuzzleSolved CannonFired QueenDefeated (ShadowQueen)
 
 local CampaignConfig = {}
 
@@ -48,6 +53,26 @@ CampaignConfig.Events = {
 	AlarmUsed = true,
 	CamerasViewed = true,
 	AttackRepelled = true,
+	CardFound = true,
+	CodeEntered = true,
+	RecordsFound = true,
+	LaserTripped = true,
+	MusicBoxSilenced = true,
+	Caught = true,
+	DecoyUsed = true,
+	HidInLocker = true,
+	ScrapCollected = true,
+	FloodlightBuilt = true,
+	MarkingRevealed = true,
+	ShopperRescued = true,
+	EvacueeLost = true,
+	Escaped = true,
+	ShopperFreed = true,
+	CannonCharged = true,
+	CannonHelped = true,
+	LightPuzzleSolved = true,
+	CannonFired = true,
+	QueenDefeated = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -498,27 +523,250 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(
-		5,
-		"Restricted Access",
-		"Find access cards and solve a puzzle to open the locked corridor.",
-		"The Stalker",
-		"A monster that hunts by sound. Sneak, hide, and finish the job quietly."
-	),
-	planned(
-		6,
-		"Final Preparations",
-		"Gather defensive materials, repair equipment, find clues about the boss.",
-		"Rescue Mission",
-		"Trapped shoppers! Reach them, escort them, defend the extraction point."
-	),
-	planned(
-		7,
-		"The Warning",
-		"Uncover the boss's identity, prepare the arena, gear up.",
-		"The Shadow Queen",
-		"First boss: attack phases, arena hazards, co-op objectives."
-	),
+	{
+		Id = "L05",
+		Index = 5,
+		Chapter = 1,
+		Implemented = true,
+		Rewards = { Cash = 550, XP = 600 },
+		Modules = { "RestrictedAccess", "Stalker" },
+		Day = {
+			Name = "Restricted Access",
+			Teaser = "Slip through timed laser gates for 3 access cards, crack the vault keypad.",
+			Story = "Management sealed the security vault. Whatever they're hiding, we need it before tonight.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "cards",
+					Text = "Recover the access cards",
+					Event = "CardFound",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Each card sits behind blinking lasers. Watch the rhythm, then dash through while they're off.",
+					Marker = { Tag = "AccessCard", Label = "💳 ACCESS CARD" },
+				},
+				{
+					Id = "code",
+					Text = "Enter the vault code",
+					Event = "CodeEntered",
+					Scope = "Team",
+					Hint = "Each card shows one digit. Enter them at the vault keypad in the colour order shown.",
+					Marker = { Tag = "VaultKeypad", Label = "🔢 VAULT KEYPAD" },
+				},
+				{
+					Id = "records",
+					Text = "Search the security records",
+					Event = "RecordsFound",
+					Scope = "Team",
+					Hint = "Inside the vault: read the records on the desk. They explain what's coming tonight.",
+					Marker = { Tag = "VaultRecords", Label = "📁 SECURITY RECORDS" },
+				},
+				{ Id = "clean", Text = "Never trip a laser", Kind = "Avoid", Event = "LaserTripped", Optional = true },
+				{ Id = "mycard", Text = "Grab an access card yourself", Event = "CardFound", Optional = true },
+			},
+		},
+		Night = {
+			Name = "The Stalker",
+			Teaser = "A blind hunter that hears every step. Sneak, hide, distract, and silence the music boxes.",
+			Story = "The records were right: Subject S is blind, and it hunts by sound. Move quietly.",
+			Duration = 200,
+			Objectives = {
+				{
+					Id = "boxes",
+					Text = "Silence the music boxes",
+					Event = "MusicBoxSilenced",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Sneak (Ctrl / C or 🤫) to stay quiet. Hold E on a box. Hide in a locker if it hunts you.",
+				},
+				{ Id = "caught", Text = "Times caught", Kind = "Avoid", Event = "Caught", Allow = 2, Scope = "Team" },
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{ Id = "ghost", Text = "Never get caught", Kind = "Avoid", Event = "Caught", Optional = true },
+				{ Id = "decoy", Text = "Lure it away with a radio", Event = "DecoyUsed", Optional = true },
+				{ Id = "hide", Text = "Hide in a locker", Event = "HidInLocker", Optional = true },
+			},
+			-- No crawler waves: the Stalker alone, in red emergency light.
+			Rules = {
+				Tier = 5,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Hunt",
+				Intro = "🤫 Something blind is awake, and it follows sound. Sneak with Ctrl / C.",
+			},
+		},
+	},
+	{
+		Id = "L06",
+		Index = 6,
+		Chapter = 1,
+		Implemented = true,
+		Rewards = { Cash = 650, XP = 700 },
+		Modules = { "Preparations", "Rescue" },
+		Day = {
+			Name = "Final Preparations",
+			Teaser = "Sweep up scrap, craft floodlights at the workbench, scan hidden markings with your flashlight.",
+			Story = "Shoppers are going missing at night. Build defences, and find out what's behind it.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "scrap",
+					Text = "Collect scrap metal",
+					Event = "ScrapCollected",
+					Target = 12,
+					Scope = "Team",
+					Hint = "Just walk over the glinting scrap piles around the mall.",
+					Marker = { Tag = "ScrapPile", Label = "🔩 SCRAP" },
+				},
+				{
+					Id = "floodlights",
+					Text = "Build floodlight towers",
+					Event = "FloodlightBuilt",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Craft a kit at the workbench (3 scrap), carry it to a tower spot by the entrance.",
+					Marker = {
+						Tag = "FloodlightSpot",
+						Label = "💡 BUILD FLOODLIGHT",
+						Carry = "Floodlight",
+						Pickup = "Workbench",
+						PickupLabel = "🔧 CRAFT AT WORKBENCH",
+					},
+				},
+				{
+					Id = "markings",
+					Text = "Scan the strange markings",
+					Event = "MarkingRevealed",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Faint symbols on the walls only show under your flashlight. Hold the beam on them.",
+					Marker = { Tag = "Marking", Label = "🔦 SHINE HERE" },
+				},
+				{
+					Id = "scrap6",
+					Text = "Collect 6 scrap yourself",
+					Event = "ScrapCollected",
+					Target = 6,
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "Rescue Mission",
+			Teaser = "Cut trapped shoppers free, escort them through the dark, hold the extraction point.",
+			Story = "Four shoppers are cocooned around the mall. Get them to the exit before the evac van leaves.",
+			Duration = 220,
+			Objectives = {
+				{
+					Id = "rescue",
+					Text = "Bring shoppers to the EVAC ring",
+					Event = "ShopperRescued",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Hold E on a cocoon, then lead the shopper to the green EVAC ring at the entrance. Guard them there until the van comes.",
+				},
+				{
+					Id = "lost",
+					Text = "Shoppers lost",
+					Kind = "Avoid",
+					Event = "EvacueeLost",
+					Allow = 1,
+					Scope = "Team",
+				},
+				{
+					Id = "escape",
+					Text = "Be at the exit when the van leaves",
+					Event = "Escaped",
+					Hint = "In the last 30 s, get inside the EVAC ring yourself.",
+				},
+				{
+					Id = "all4",
+					Text = "Bring all 4 shoppers to the ring",
+					Event = "ShopperRescued",
+					Target = 4,
+					Scope = "Team",
+					Optional = true,
+				},
+				{ Id = "free", Text = "Cut a shopper free yourself", Event = "ShopperFreed", Optional = true },
+			},
+			Rules = {
+				Tier = 5,
+				Fuses = false,
+				Blackout = false,
+				Waves = { Base = 2, PerPlayer = 1, Growth = 1, Interval = 30, MaxAlive = 10, FirstDelay = 20 },
+				Intro = "🚐 Shoppers are trapped in cocoons! Free them and get them to the EVAC ring.",
+			},
+		},
+	},
+	{
+		Id = "L07",
+		Index = 7,
+		Chapter = 1,
+		Implemented = true,
+		Rewards = { Cash = 800, XP = 900 },
+		-- Finishing Chapter 1 (first clear only).
+		ChapterReward = { Cash = 1000, XP = 1000, Title = "Queen Slayer" },
+		Modules = { "ShadowQueen" },
+		Day = {
+			Name = "The Warning",
+			Teaser = "Charge the light cannons, solve the mirror puzzle, earn the Prism Lens.",
+			Story = "The markings point to her: the Shadow Queen. She fears focused light. Get the arena ready.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "cannons",
+					Text = "Charge the light cannons",
+					Event = "CannonCharged",
+					Target = 3,
+					Scope = "Team",
+					Hint = "Stand inside a cannon's ring until it's fully charged. More people charge it faster.",
+					Marker = { Tag = "LightCannon", Label = "🔆 CHARGE CANNON" },
+				},
+				{
+					Id = "mirrors",
+					Text = "Guide the light beam to the crystal",
+					Event = "LightPuzzleSolved",
+					Scope = "Team",
+					Hint = "North of the fountain: rotate mirrors (E) until the beam reaches the crystal. Reward: the Prism Lens.",
+					Marker = { Tag = "Mirror", Label = "🪞 ROTATE MIRRORS" },
+				},
+				{ Id = "mycannon", Text = "Help charge a cannon", Event = "CannonHelped", Optional = true },
+			},
+		},
+		Night = {
+			Name = "The Shadow Queen",
+			Teaser = "First boss: shield-breaking light cannons, three phases, slams, broods and darkness.",
+			Story = "She's here. Fire the cannons to break her shield, then burn her with everything you have.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "queen",
+					Text = "Defeat the Shadow Queen",
+					Event = "QueenDefeated",
+					Scope = "Team",
+					Hint = "Hold E at a charged cannon to break her shield, then flashlight her. Dodge the red circles!",
+				},
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{ Id = "fire", Text = "Fire a light cannon", Event = "CannonFired", Optional = true },
+				{
+					Id = "flawless",
+					Text = "Team: nobody knocked down",
+					Kind = "Avoid",
+					Event = "Downed",
+					Scope = "Team",
+					Optional = true,
+				},
+			},
+			Rules = {
+				Tier = 6,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Queen",
+				Intro = "👑 THE SHADOW QUEEN RISES. Break her shield with the light cannons!",
+			},
+		},
+	},
 	-- ── Chapter 2: Food Court ───────────────────────────────────────────────
 	planned(
 		8,

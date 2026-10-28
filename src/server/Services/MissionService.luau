@@ -35,6 +35,11 @@ local LEVEL_MODULES: { [string]: any } = {
 	MissingDelivery = require(script.Parent.Parent.Levels.MissingDelivery),
 	Impostors = require(script.Parent.Parent.Levels.Impostors),
 	SecuritySystem = require(script.Parent.Parent.Levels.SecuritySystem),
+	RestrictedAccess = require(script.Parent.Parent.Levels.RestrictedAccess),
+	Stalker = require(script.Parent.Parent.Levels.Stalker),
+	Preparations = require(script.Parent.Parent.Levels.Preparations),
+	Rescue = require(script.Parent.Parent.Levels.Rescue),
+	ShadowQueen = require(script.Parent.Parent.Levels.ShadowQueen),
 }
 
 type Stage = "Day" | "Night"
@@ -350,6 +355,8 @@ local OUTCOME_TEXT = {
 }
 
 local function endNight()
+	-- last-moment objectives (e.g. who is in the evac zone) are recorded before judging
+	callModules("BeforeNightEnd")
 	stageFinal = true
 	local level, nightTracker = active, tracker
 	if level and nightTracker then
@@ -381,6 +388,23 @@ local function endNight()
 				result.Cash, result.XP = reward.Cash, reward.XP
 				if first then
 					campaign.Completed[level.Id] = os.time()
+					local chapterReward = level.ChapterReward
+					if chapterReward and not campaign.Chapters[level.Chapter] then
+						campaign.Chapters[level.Chapter] = os.time()
+						ProgressionService.AddCash(player, chapterReward.Cash)
+						ProgressionService.AddXP(player, chapterReward.XP)
+						local data = DataService.Get(player)
+						if data then
+							data.Title = chapterReward.Title
+							player:SetAttribute("Title", chapterReward.Title)
+						end
+						result.Chapter = {
+							Index = level.Chapter,
+							Cash = chapterReward.Cash,
+							XP = chapterReward.XP,
+							Title = chapterReward.Title,
+						}
+					end
 					if votes[player] == level.Id then
 						votes[player] = nil -- follow your progress by default
 					end
@@ -552,7 +576,11 @@ function MissionService.Start()
 		end
 	end)
 
-	DataService.ProfileLoaded:Connect(function(player)
+	DataService.ProfileLoaded:Connect(function(player, data)
+		player:SetAttribute("Title", data.Title or "")
+		for item in data.Equipment do
+			player:SetAttribute("Equip_" .. item, true)
+		end
 		syncCampaign(player)
 		publishVotes()
 		markDirty(player)

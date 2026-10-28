@@ -22,6 +22,11 @@ local LOOKS: { [string]: { Size: Vector3, Color: Color3, Material: Enum.Material
 		Material = Enum.Material.Cardboard,
 	},
 	Planks = { Size = Vector3.new(0.6, 0.5, 2.6), Color = Palette.Wood, Material = Enum.Material.WoodPlanks },
+	Floodlight = {
+		Size = Vector3.new(1.4, 1.2, 1.4),
+		Color = Color3.fromRGB(235, 240, 255),
+		Material = Enum.Material.Neon,
+	},
 }
 
 type Carried = { Item: string, Visual: BasePart, OnLost: (() -> ())? }

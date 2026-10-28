@@ -4,6 +4,7 @@
 local process = require("@lune/process")
 local CampaignConfig = require("../src/shared/Campaign/CampaignConfig")
 local Logic = require("../src/shared/Campaign/CampaignLogic")
+local MirrorGrid = require("../src/server/Levels/MirrorGrid")
 
 local passed, failed = 0, 0
 
@@ -210,11 +211,19 @@ test("next level and unlocks follow completion order", function()
 	eq(Logic.nextLevel(levels, {}).Id, "L01", "fresh player")
 	eq(Logic.nextLevel(levels, { L01 = 1 }).Id, "L02", "after L01")
 	eq(Logic.nextLevel(levels, { L01 = 1, L02 = 1 }).Id, "L03", "after L02")
-	eq(Logic.nextLevel(levels, { L01 = 1, L02 = 1, L03 = 1, L04 = 1 }), nil, "all available done")
+	local all, firstPlanned = {}, nil
+	for _, level in levels do
+		if level.Implemented then
+			all[level.Id] = 1
+		elseif not firstPlanned then
+			firstPlanned = level.Id
+		end
+	end
+	eq(Logic.nextLevel(levels, all), nil, "all available done")
 	eq(Logic.isUnlocked(levels, {}, "L02"), false, "L02 locked")
 	eq(Logic.isUnlocked(levels, { L01 = 1 }, "L02"), true, "L02 unlocked")
 	eq(Logic.isUnlocked(levels, { L01 = 1 }, "L01"), true, "replay allowed")
-	eq(Logic.isUnlocked(levels, { L01 = 1, L02 = 1, L03 = 1, L04 = 1 }, "L05"), false, "planned level never unlocks")
+	eq(Logic.isUnlocked(levels, all, firstPlanned), false, "planned level never unlocks")
 end)
 
 test("vote picks the plurality; ties go to the earliest level; Free Shift loses ties", function()
@@ -249,6 +258,32 @@ test("replays pay a fraction of the first-clear reward", function()
 	eq(first.Cash, 250, "first cash")
 	eq(replay.Cash, 62, "replay cash")
 	eq(replay.XP, 75, "replay xp")
+end)
+
+print("Level 7 light puzzle")
+
+test("mirror puzzle: solved exactly when the three route mirrors are '/'", function()
+	local solutions = 0
+	for mask = 0, 63 do
+		local states = {}
+		for i = 1, 6 do
+			states[i] = if bit32.extract(mask, i - 1) == 1 then "/" else "\\"
+		end
+		local solved = MirrorGrid.solved(states)
+		if solved then
+			solutions += 1
+		end
+		eq(solved, states[1] == "/" and states[2] == "/" and states[3] == "/", "mask " .. mask)
+	end
+	eq(solutions, 8, "solutions")
+end)
+
+test("mirror puzzle: the solved route ends at the receiver", function()
+	local cells, dir, hit = MirrorGrid.trace({ "/", "/", "/", "\\", "\\", "\\" })
+	eq(hit, true, "hit")
+	local last = cells[#cells]
+	eq(last[1] .. "," .. last[2], "3,4", "last cell")
+	eq(dir[1] .. "," .. dir[2], "0,1", "leaves north")
 end)
 
 print(string.format("\n%d passed, %d failed", passed, failed))

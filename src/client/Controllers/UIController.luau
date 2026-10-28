@@ -13,10 +13,12 @@ local LocalEvents = require(script.Parent.Parent.LocalEvents)
 local AudioController = require(script.Parent.AudioController)
 local Create = require(script.Parent.Parent.UI.Create)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local BossBar = require(script.Parent.Parent.UI.Screens.BossBar)
 local CameraFeed = require(script.Parent.Parent.UI.Screens.CameraFeed)
 local CampaignPanel = require(script.Parent.Parent.UI.Screens.CampaignPanel)
 local DevStorePanel = require(script.Parent.Parent.UI.Screens.DevStorePanel)
 local Hud = require(script.Parent.Parent.UI.Screens.Hud)
+local KeypadPanel = require(script.Parent.Parent.UI.Screens.KeypadPanel)
 local MainMenu = require(script.Parent.Parent.UI.Screens.MainMenu)
 local Notifications = require(script.Parent.Parent.UI.Screens.Notifications)
 local ResultsPanel = require(script.Parent.Parent.UI.Screens.ResultsPanel)
@@ -105,6 +107,8 @@ function UIController.Start()
 	windows.Results = ResultsPanel.new(root, close)
 	windows.Campaign = CampaignPanel.new(root, close)
 	local cameraFeed = CameraFeed.new(root)
+	windows.Keypad = KeypadPanel.new(root, close)
+	BossBar.mount(root)
 	DevStorePanel.mount(root) -- Studio test mode only; no-op in live servers
 
 	MainMenu.new(root, function()
@@ -143,6 +147,19 @@ function UIController.Start()
 			notifications:Push(result.Title .. ": " .. (result.Heading or ""), if good then "levelup" else "warning")
 			if result.Reason and good == false then
 				notifications:Push(result.Reason, "info")
+			end
+			local chapter = result.Chapter
+			if chapter then
+				notifications:Push(
+					string.format(
+						"👑 CHAPTER %d COMPLETE! +%s · +%d XP · Title: %s",
+						chapter.Index,
+						Format.cash(chapter.Cash or 0),
+						chapter.XP or 0,
+						chapter.Title or ""
+					),
+					"levelup"
+				)
 			end
 			local nextLevel = result.Next
 			if nextLevel then
@@ -196,6 +213,21 @@ function UIController.Start()
 		elseif kind == "OpenCameras" and type(payload.Cameras) == "table" then
 			setWindow(nil)
 			cameraFeed:Open(payload.Cameras)
+		elseif kind == "Keypad" and type(payload.Order) == "table" then
+			windows.Keypad:Open(payload.Order)
+			setWindow("Keypad")
+		elseif kind == "BossIntro" then
+			hud:ShowBanner("THE SHADOW QUEEN", "Fire the light cannons to break her shield!", Theme.Colors.Purple)
+			AudioController.Play("MonsterSpawn")
+		elseif kind == "BossPhase" then
+			hud:ShowBanner(
+				if payload.Phase == 2 then "PHASE 2" else "FINAL PHASE",
+				if payload.Phase == 2 then "Darkness and double slams!" else "Jump the sweeping beam!",
+				Theme.Colors.Red
+			)
+		elseif kind == "BossDefeated" then
+			hud:ShowBanner("QUEEN DEFEATED", "Hold out until dawn to complete Chapter 1!", Theme.Colors.Gold)
+			AudioController.Play("LevelUp")
 		elseif kind == "PhantomUnmasked" then
 			if typeof(payload.Position) == "Vector3" then
 				hud:WorldPopup(payload.Position, "👻 UNMASKED!", Theme.Colors.Cyan)
