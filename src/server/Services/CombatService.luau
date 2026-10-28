@@ -302,7 +302,7 @@ local function burn(player: Player, origin: Vector3, aim: Vector3, dt: number)
 			if distance <= FL.Range and distance > 0.1 then
 				local inCone = LightCone.hits(aim:Dot(offset / distance), distance, 0, coneHalf, FL.Range)
 				if inCone and workspace:Raycast(origin, offset, rayParams) == nil then
-					EnemyService.Damage(enemy, damage, player)
+					EnemyService.Burn(enemy, damage, player, dt)
 				end
 			end
 		end

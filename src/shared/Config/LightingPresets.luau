@@ -171,6 +171,222 @@ local LightingPresets: { [string]: Preset } = {
 		Bloom = { Intensity = 1, Size = 30, Threshold = 1 },
 		SunRays = { Intensity = 0, Spread = 0.55 },
 	},
+	-- Kitchen (Level 8 night): sodium-orange grease haze, neon still readable.
+	Kitchen = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.7,
+			Ambient = rgb(74, 40, 30),
+			OutdoorAmbient = rgb(60, 34, 30),
+			ColorShift_Top = rgb(255, 150, 80),
+			ColorShift_Bottom = rgb(40, 10, 30),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.15,
+		},
+		Atmosphere = {
+			Density = 0.38,
+			Offset = 0.15,
+			Color = rgb(110, 60, 40),
+			Decay = rgb(40, 14, 20),
+			Glare = 0,
+			Haze = 2,
+		},
+		ColorCorrection = {
+			TintColor = rgb(255, 228, 205),
+			Saturation = 0.05,
+			Contrast = 0.24,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 0.9, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Inferno (Level 9 night): smoke and firelight. Thick, warm, low visibility.
+	Inferno = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.6,
+			Ambient = rgb(96, 40, 22),
+			OutdoorAmbient = rgb(80, 40, 30),
+			ColorShift_Top = rgb(255, 120, 40),
+			ColorShift_Bottom = rgb(60, 10, 0),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.2,
+		},
+		Atmosphere = {
+			Density = 0.5,
+			Offset = 0.05,
+			Color = rgb(120, 60, 40),
+			Decay = rgb(50, 20, 10),
+			Glare = 0,
+			Haze = 2.6,
+		},
+		ColorCorrection = {
+			TintColor = rgb(255, 214, 180),
+			Saturation = 0.1,
+			Contrast = 0.22,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 1.1, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Delivery (Level 10 night): sickly violet infection under sodium lamps.
+	Delivery = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.7,
+			Ambient = rgb(60, 30, 80),
+			OutdoorAmbient = rgb(50, 40, 60),
+			ColorShift_Top = rgb(200, 120, 255),
+			ColorShift_Bottom = rgb(40, 20, 10),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.15,
+		},
+		Atmosphere = {
+			Density = 0.4,
+			Offset = 0.15,
+			Color = rgb(80, 40, 110),
+			Decay = rgb(30, 20, 40),
+			Glare = 0,
+			Haze = 2.2,
+		},
+		ColorCorrection = {
+			TintColor = rgb(236, 214, 255),
+			Saturation = 0.1,
+			Contrast = 0.25,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 1, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Freezer (Level 11 night): pale blue cold, crisp shadows, breath-fog haze.
+	Freezer = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.9,
+			Ambient = rgb(60, 84, 120),
+			OutdoorAmbient = rgb(70, 90, 130),
+			ColorShift_Top = rgb(170, 220, 255),
+			ColorShift_Bottom = rgb(20, 30, 60),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.25,
+		},
+		Atmosphere = {
+			Density = 0.42,
+			Offset = 0.2,
+			Color = rgb(150, 190, 230),
+			Decay = rgb(60, 80, 120),
+			Glare = 0,
+			Haze = 1.8,
+		},
+		ColorCorrection = {
+			TintColor = rgb(215, 235, 255),
+			Saturation = -0.15,
+			Contrast = 0.2,
+			Brightness = 0.02,
+		},
+		Bloom = { Intensity = 0.8, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Maze (Level 12 night): near-dark brick cellar; chalk arrows and seals glow.
+	Maze = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.4,
+			Ambient = rgb(38, 30, 34),
+			OutdoorAmbient = rgb(30, 26, 30),
+			ColorShift_Top = rgb(255, 190, 130),
+			ColorShift_Bottom = rgb(10, 6, 10),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0,
+		},
+		Atmosphere = {
+			Density = 0.45,
+			Offset = 0.1,
+			Color = rgb(40, 30, 30),
+			Decay = rgb(10, 8, 10),
+			Glare = 0,
+			Haze = 2.4,
+		},
+		ColorCorrection = {
+			TintColor = rgb(240, 225, 215),
+			Saturation = -0.05,
+			Contrast = 0.3,
+			Brightness = -0.02,
+		},
+		Bloom = { Intensity = 1, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Toxic (Level 13 night): green chemical haze; clean-air stations stand out.
+	Toxic = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.7,
+			Ambient = rgb(50, 70, 34),
+			OutdoorAmbient = rgb(40, 60, 30),
+			ColorShift_Top = rgb(170, 255, 110),
+			ColorShift_Bottom = rgb(20, 30, 10),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.15,
+		},
+		Atmosphere = {
+			Density = 0.46,
+			Offset = 0.1,
+			Color = rgb(90, 120, 50),
+			Decay = rgb(30, 40, 16),
+			Glare = 0,
+			Haze = 2.4,
+		},
+		ColorCorrection = {
+			TintColor = rgb(220, 255, 200),
+			Saturation = 0,
+			Contrast = 0.22,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 1, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
+
+	-- Chef (Level 14 boss): blood-orange kitchen inferno over deep violet.
+	Chef = {
+		Lighting = {
+			ClockTime = 0.2,
+			Brightness = 0.8,
+			Ambient = rgb(80, 34, 44),
+			OutdoorAmbient = rgb(50, 30, 60),
+			ColorShift_Top = rgb(255, 110, 60),
+			ColorShift_Bottom = rgb(60, 10, 60),
+			EnvironmentDiffuseScale = 0.4,
+			EnvironmentSpecularScale = 1,
+			ExposureCompensation = 0.2,
+		},
+		Atmosphere = {
+			Density = 0.38,
+			Offset = 0.15,
+			Color = rgb(110, 40, 50),
+			Decay = rgb(40, 10, 30),
+			Glare = 0,
+			Haze = 2,
+		},
+		ColorCorrection = {
+			TintColor = rgb(255, 215, 205),
+			Saturation = 0.15,
+			Contrast = 0.28,
+			Brightness = 0,
+		},
+		Bloom = { Intensity = 1.1, Size = 26, Threshold = 1 },
+		SunRays = { Intensity = 0, Spread = 0.55 },
+	},
 }
 
 return LightingPresets

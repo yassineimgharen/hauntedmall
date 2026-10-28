@@ -32,7 +32,7 @@ local LAMP_RADIUS = 13 -- crawlers inside a lit lamp's radius burn
 local LAMP_DPS = EnemyConfig.Fuses.SafeDPS
 
 local PANELS = {
-	{ Name = "West Hall Panel", CFrame = CFrame.lookAt(Vector3.new(-HALF, 4.5, 8), Vector3.new(0, 4.5, 8)) },
+	{ Name = "West Hall Panel", CFrame = CFrame.lookAt(Vector3.new(-HALF, 4.5, 18), Vector3.new(0, 4.5, 18)) },
 	{ Name = "North Hall Panel", CFrame = CFrame.lookAt(Vector3.new(0, 4.5, HALF), Vector3.new(0, 4.5, 0)) },
 	{
 		Name = "Upper Level Panel",

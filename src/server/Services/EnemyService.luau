@@ -17,7 +17,12 @@ local RunService = game:GetService("RunService")
 
 local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local FrostWraith = require(script.Parent.Parent.Enemies.FrostWraith)
+local Meatball = require(script.Parent.Parent.Enemies.Meatball)
+local ParcelMimic = require(script.Parent.Parent.Enemies.ParcelMimic)
+local PossessedCart = require(script.Parent.Parent.Enemies.PossessedCart)
 local ShadowCrawler = require(script.Parent.Parent.Enemies.ShadowCrawler)
+local SporeBloater = require(script.Parent.Parent.Enemies.SporeBloater)
 local CollisionGroups = require(script.Parent.Parent.Util.CollisionGroups)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local ShopService = require(script.Parent.ShopService)
@@ -50,6 +55,7 @@ export type Enemy = {
 	Goal: Goal?, -- level objective this enemy attacks when no player is in sight
 	LureUntil: number, -- os.clock(): drawn to LurePosition (alarms) until then
 	LurePosition: Vector3?,
+	Custom: { [string]: any }, -- per-type state for Kind.Think (and hooks a level sets)
 }
 
 -- Something an enemy marches on and hits (e.g. a security terminal).
@@ -69,13 +75,35 @@ export type Behavior = {
 local EnemyService = {}
 EnemyService.Killed = Signal.new() -- (enemy, contributors: {[Player]: number})
 
-local BUILDERS = {
-	ShadowCrawler = function()
-		return ShadowCrawler.build()
-	end,
-	PhantomShopper = function()
-		return ShadowCrawler.build("Phantom")
-	end,
+-- What an enemy type adds to the shared AI (Enemies/*.luau). Only Build is required.
+--   Think    runs every AI tick before the default behaviour; return true to skip it
+--   OnLit    the flashlight is on it this tick (after any light damage)
+--   OnKilled it just died (e.g. split into smaller enemies)
+-- They get the `ai` helpers below instead of requiring this service (no require cycle).
+export type Kind = {
+	Build: () -> Model,
+	Think: ((enemy: Enemy, now: number, ai: any) -> boolean)?,
+	OnLit: ((enemy: Enemy, player: Player, dt: number, ai: any) -> ())?,
+	OnKilled: ((enemy: Enemy, ai: any) -> ())?,
+}
+
+local KINDS: { [string]: Kind } = {
+	ShadowCrawler = {
+		Build = function()
+			return ShadowCrawler.build()
+		end,
+	},
+	PhantomShopper = {
+		Build = function()
+			return ShadowCrawler.build("Phantom")
+		end,
+	},
+	PossessedCart = PossessedCart :: any,
+	ParcelMimic = ParcelMimic.Mimic :: any,
+	ParcelMite = ParcelMimic.Mite :: any,
+	FrostWraith = FrostWraith :: any,
+	SporeBloater = SporeBloater :: any,
+	Meatball = Meatball :: any,
 }
 
 local enemies: { Enemy } = {}
@@ -255,6 +283,8 @@ local function pickShop(position: Vector3): ShopService.Shop?
 	return best
 end
 
+local AI -- helpers handed to Kind hooks (filled in below, once everything is defined)
+
 local function think(enemy: Enemy, now: number)
 	local humanoid = enemy.Humanoid
 	local config = enemy.Config
@@ -263,6 +293,10 @@ local function think(enemy: Enemy, now: number)
 		return
 	end
 	humanoid.WalkSpeed = config.WalkSpeed
+	local kind = KINDS[enemy.Type]
+	if kind.Think and kind.Think(enemy, now, AI) then
+		return
+	end
 
 	local position = enemy.Root.Position
 	if now < enemy.WindupUntil then
@@ -384,14 +418,14 @@ end
 
 -- night (1 = first) scales speed, damage, health and detection (EnemyConfig.Scaled).
 function EnemyService.Spawn(typeId: string, position: Vector3, night: number?): Enemy?
-	local build = BUILDERS[typeId]
-	if not build or not EnemyConfig.Types[typeId] then
+	local kind = KINDS[typeId]
+	if not kind or not EnemyConfig.Types[typeId] then
 		warn("[EnemyService] unknown enemy type " .. tostring(typeId))
 		return nil
 	end
 	local config = EnemyConfig.Scaled(typeId, night or 1)
 
-	local model = build()
+	local model = kind.Build()
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
 	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
 	CollisionGroups.assign(model, CollisionGroups.Enemies)
@@ -441,6 +475,7 @@ function EnemyService.Spawn(typeId: string, position: Vector3, night: number?): 
 		Goal = nil,
 		LureUntil = 0,
 		LurePosition = nil,
+		Custom = {},
 	}
 	table.insert(enemies, enemy)
 	workspace:SetAttribute("EnemiesAlive", #enemies)
@@ -459,7 +494,32 @@ function EnemyService.Damage(enemy: Enemy, amount: number, source: Player?)
 	enemy.Model:SetAttribute("LitUntil", serverNow() + 0.3)
 	if enemy.HP <= 0 then
 		remove(enemy)
+		local onKilled = KINDS[enemy.Type].OnKilled
+		if onKilled then
+			local ok, err = pcall(onKilled, enemy, AI)
+			if not ok then
+				warn("[EnemyService] OnKilled error: " .. tostring(err))
+			end
+		end
 		EnemyService.Killed:Fire(enemy, enemy.Contributors)
+	end
+end
+
+-- Flashlight damage (CombatService): scaled by the type's LightScale, then its OnLit hook.
+-- Light-proof enemies still flash "lit" so players see the beam land.
+function EnemyService.Burn(enemy: Enemy, amount: number, player: Player, dt: number)
+	if enemy.Dead then
+		return
+	end
+	local scale = enemy.Config.LightScale or 1
+	if scale > 0 then
+		EnemyService.Damage(enemy, amount * scale, player)
+	else
+		enemy.Model:SetAttribute("LitUntil", serverNow() + 0.3)
+	end
+	local onLit = KINDS[enemy.Type].OnLit
+	if onLit and not enemy.Dead then
+		onLit(enemy, player, dt, AI)
 	end
 end
 
@@ -516,6 +576,23 @@ end
 function EnemyService.AliveCount(): number
 	return #enemies
 end
+
+AI = {
+	NearestPlayer = nearestPlayer, -- (position, range, requireSight) -> (Player?, BasePart?, distance)
+	LivingRoot = livingRoot,
+	Navigate = navigate,
+	Face = face,
+	Attack = attackPlayer, -- the standard telegraphed bite (enemy, player, now)
+	HitPlayer = EnemyService.HitPlayer,
+	Spawn = EnemyService.Spawn,
+	Stun = EnemyService.Stun,
+	LineOfSight = hasLineOfSight,
+	FlatDistance = flatDistance,
+	ServerNow = serverNow,
+	Warn = function(player: Player, seconds: number)
+		Notify.effect(player, "Danger", { Windup = seconds })
+	end,
+}
 
 function EnemyService.Init()
 	folder = Instance.new("Folder")

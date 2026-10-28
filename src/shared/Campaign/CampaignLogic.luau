@@ -264,6 +264,20 @@ function CampaignLogic.reward(rewards: { Cash: number, XP: number }, firstClear:
 	return { Cash = math.floor(rewards.Cash * scale), XP = math.floor(rewards.XP * scale) }
 end
 
+-- Saved chapters are keyed by strings ("1", "2"). Numeric keys (older saves) are moved
+-- over: a table holding only [2] would be a sparse array, which DataStores can reject.
+function CampaignLogic.normalizeChapters(campaign: { Chapters: { [any]: any } })
+	local fixed = {}
+	for key, value in campaign.Chapters do
+		fixed[tostring(key)] = value
+	end
+	campaign.Chapters = fixed
+end
+
+function CampaignLogic.chapterDone(campaign: { Chapters: { [any]: any } }, chapter: number): boolean
+	return campaign.Chapters[tostring(chapter)] ~= nil or campaign.Chapters[chapter] ~= nil
+end
+
 -- A chapter's finale reward, at most once per player: marks the chapter in the saved
 -- campaign and returns the reward, or nil if this level has none or it was already paid.
 function CampaignLogic.claimChapter(
@@ -272,11 +286,35 @@ function CampaignLogic.claimChapter(
 	now: number
 ): { Cash: number, XP: number, Title: string }?
 	local reward = level.ChapterReward
-	if not reward or campaign.Chapters[level.Chapter] then
+	if not reward or CampaignLogic.chapterDone(campaign, level.Chapter) then
 		return nil
 	end
-	campaign.Chapters[level.Chapter] = now
+	campaign.Chapters[tostring(level.Chapter)] = now
 	return reward
+end
+
+-- Achievements whose rule the saved campaign now meets and that weren't earned before.
+-- Marks them (campaign.Achievements[id] = now) and returns them, so each pays once.
+function CampaignLogic.unlockAchievements(
+	campaign: { [string]: any },
+	list: { any }, -- AchievementConfig.List
+	now: number
+): { any }
+	campaign.Achievements = campaign.Achievements or {}
+	local earned = {}
+	for _, achievement in list do
+		if campaign.Achievements[achievement.Id] == nil then
+			local rule = achievement.Rule
+			local met = (rule.Level == nil or campaign.Completed[rule.Level] ~= nil)
+				and (rule.Optional == nil or campaign.OptionalDone[rule.Optional] == true)
+				and (rule.Chapter == nil or CampaignLogic.chapterDone(campaign :: any, rule.Chapter))
+			if met then
+				campaign.Achievements[achievement.Id] = now
+				table.insert(earned, achievement)
+			end
+		end
+	end
+	return earned
 end
 
 return CampaignLogic

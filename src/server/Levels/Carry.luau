@@ -22,6 +22,7 @@ local LOOKS: { [string]: { Size: Vector3, Color: Color3, Material: Enum.Material
 		Material = Enum.Material.Cardboard,
 	},
 	Planks = { Size = Vector3.new(0.6, 0.5, 2.6), Color = Palette.Wood, Material = Enum.Material.WoodPlanks },
+	Mop = { Size = Vector3.new(0.35, 3.4, 0.35), Color = Color3.fromRGB(240, 196, 40), Material = Enum.Material.Fabric },
 	Floodlight = {
 		Size = Vector3.new(1.4, 1.2, 1.4),
 		Color = Color3.fromRGB(235, 240, 255),

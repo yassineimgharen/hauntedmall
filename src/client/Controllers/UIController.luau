@@ -217,20 +217,53 @@ function UIController.Start()
 			windows.Keypad:Open(payload.Order)
 			setWindow("Keypad")
 		elseif kind == "BossIntro" then
-			hud:ShowBanner("THE SHADOW QUEEN", "Fire a 🔆 light cannon to break her shield!", Theme.Colors.Purple)
+			hud:ShowBanner(
+				payload.Title or "THE SHADOW QUEEN",
+				payload.Subtitle or "Fire a 🔆 light cannon to break her shield!",
+				Theme.Colors.Purple
+			)
 			AudioController.Play("MonsterSpawn")
 		elseif kind == "BossPhase" then
 			hud:ShowBanner(
-				if payload.Phase == 2 then "PHASE 2: GROWING DARKNESS" else "FINAL PHASE",
-				if payload.Phase == 2
-					then "Darkness stops the cannons. Double slams!"
-					else "A beam sweeps the floor: JUMP over it!",
+				payload.Title or (if payload.Phase == 2 then "PHASE 2: GROWING DARKNESS" else "FINAL PHASE"),
+				payload.Subtitle
+					or (
+						if payload.Phase == 2
+							then "Darkness stops the cannons. Double slams!"
+							else "A beam sweeps the floor: JUMP over it!"
+					),
 				Theme.Colors.Red
 			)
 			AudioController.Play("MonsterSpawn")
 		elseif kind == "BossDefeated" then
-			hud:ShowBanner("QUEEN DEFEATED", "Dawn breaks in a few seconds: Chapter 1 complete!", Theme.Colors.Gold)
+			hud:ShowBanner(
+				payload.Title or "QUEEN DEFEATED",
+				payload.Subtitle or "Dawn breaks in a few seconds: Chapter 1 complete!",
+				Theme.Colors.Gold
+			)
 			AudioController.Play("LevelUp")
+		elseif kind == "Banner" then
+			-- generic level messages: { Title, Subtitle, Color = Theme colour name, Sound }
+			hud:ShowBanner(
+				tostring(payload.Title or ""),
+				tostring(payload.Subtitle or ""),
+				Theme.Colors[payload.Color or ""] or Theme.Colors.Gold
+			)
+			if type(payload.Sound) == "string" then
+				AudioController.Play(payload.Sound)
+			end
+		elseif kind == "Popup" then
+			hud:Popup(
+				tostring(payload.Text or ""),
+				Theme.Colors[payload.Color or ""] or Theme.Colors.Gold,
+				UDim2.fromScale(0.5, tonumber(payload.Y) or 0.5)
+			)
+		elseif kind == "WorldPopup" and typeof(payload.Position) == "Vector3" then
+			hud:WorldPopup(
+				payload.Position,
+				tostring(payload.Text or ""),
+				Theme.Colors[payload.Color or ""] or Theme.Colors.Gold
+			)
 		elseif kind == "ShieldBreak" then
 			hud:ShowBanner("SHIELD BROKEN!", "ATTACK NOW: hold your flashlight on her!", Theme.Colors.Green)
 			AudioController.Play("PowerUp")

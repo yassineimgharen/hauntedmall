@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local CampaignLogic = require(ReplicatedStorage.Shared.Campaign.CampaignLogic)
 local EconomyConfig = require(ReplicatedStorage.Shared.Config.EconomyConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
@@ -91,7 +92,8 @@ local function defaultData(): { [string]: any }
 			Completed = {}, -- [levelId] = unix time of the first clear
 			DayCleared = {}, -- [levelId] = true once that level's day objectives were met
 			OptionalDone = {}, -- ["L01/serve6"] = true (optional bonus XP paid once)
-			Chapters = {}, -- [chapterIndex] = unix time the chapter's final level was first cleared
+			Chapters = {}, -- ["1"] = unix time the chapter's final level was first cleared
+			Achievements = {}, -- [achievementId] = unix time earned (AchievementConfig, paid once)
 		},
 		Equipment = {}, -- [itemId] = true, e.g. PrismLens (earned in the campaign, never sold)
 		Title = "", -- shown title earned from chapter rewards
@@ -149,8 +151,15 @@ local function sanitize(data: { [string]: any })
 		or type(campaign.DayCleared) ~= "table"
 		or type(campaign.OptionalDone) ~= "table"
 	then
-		data.Campaign = { Completed = {}, DayCleared = {}, OptionalDone = {}, Chapters = {} }
+		data.Campaign = { Completed = {}, DayCleared = {}, OptionalDone = {}, Chapters = {}, Achievements = {} }
 	end
+	if type(data.Campaign.Chapters) ~= "table" then
+		data.Campaign.Chapters = {}
+	end
+	if type(data.Campaign.Achievements) ~= "table" then
+		data.Campaign.Achievements = {}
+	end
+	CampaignLogic.normalizeChapters(data.Campaign)
 	if type(data.Equipment) ~= "table" then
 		data.Equipment = {}
 	end

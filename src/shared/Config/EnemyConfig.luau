@@ -13,6 +13,7 @@ export type EnemyType = {
 	ShopDrainInterval: number,
 	HipHeight: number,
 	AttackWindup: number, -- telegraph: the enemy rears up this long before the bite lands
+	LightScale: number?, -- flashlight damage multiplier (default 1; 0 = light only slows it)
 	-- growth per night after the first, and hard caps (WalkSpeed cap stays below the
 	-- player's 16 so a player running in a straight line can always escape)
 	PerNight: { WalkSpeed: number, Damage: number, MaxHealth: number, AggroRange: number },
@@ -53,6 +54,108 @@ local EnemyConfig = {
 			HipHeight = 1.4,
 			PerNight = { WalkSpeed = 0.3, Damage = 1, MaxHealth = 4, AggroRange = 0 },
 			Caps = { WalkSpeed = 15, Damage = 15, MaxHealth = 60, AggroRange = 60 },
+		} :: EnemyType,
+
+		-- ── Chapter 2 (the food court) ──────────────────────────────────────────
+		-- A haunted steel trolley (Level 8). Rolls slowly, then aims (a red lane on the
+		-- floor) and charges along it: sidestep the lane. Dizzy for a moment afterwards.
+		PossessedCart = {
+			DisplayName = "Possessed Cart",
+			MaxHealth = 60,
+			WalkSpeed = 10,
+			Damage = 15,
+			AttackRange = 4.5,
+			AttackCooldown = 2,
+			AttackWindup = 0.7,
+			AggroRange = 60,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 1.6,
+			PerNight = { WalkSpeed = 0.2, Damage = 1, MaxHealth = 5, AggroRange = 0 },
+			Caps = { WalkSpeed = 12, Damage = 20, MaxHealth = 90, AggroRange = 60 },
+		} :: EnemyType,
+		-- An infected parcel (Level 10): sits disguised until you come close or light it,
+		-- then pounces (a landing circle shows where). Bursts into two Parcel Mites.
+		ParcelMimic = {
+			DisplayName = "Parcel Mimic",
+			MaxHealth = 50,
+			WalkSpeed = 10,
+			Damage = 14,
+			AttackRange = 5,
+			AttackCooldown = 1.8,
+			AttackWindup = 0.7,
+			AggroRange = 45,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 1.4,
+			PerNight = { WalkSpeed = 0.2, Damage = 1, MaxHealth = 4, AggroRange = 0 },
+			Caps = { WalkSpeed = 12, Damage = 18, MaxHealth = 80, AggroRange = 45 },
+		} :: EnemyType,
+		ParcelMite = {
+			DisplayName = "Parcel Mite",
+			MaxHealth = 16,
+			WalkSpeed = 14,
+			Damage = 6,
+			AttackRange = 4,
+			AttackCooldown = 1.3,
+			AttackWindup = 0.45,
+			AggroRange = 60,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 0.6,
+			PerNight = { WalkSpeed = 0.1, Damage = 0.5, MaxHealth = 2, AggroRange = 0 },
+			Caps = { WalkSpeed = 14.5, Damage = 9, MaxHealth = 26, AggroRange = 60 },
+		} :: EnemyType,
+		-- The thing in the hidden freezer (Level 11). Light can't hurt it, only slow it;
+		-- it chills everyone near it and breathes frost. You escape it, you don't kill it.
+		FrostWraith = {
+			DisplayName = "Frost Wraith",
+			MaxHealth = 100000,
+			WalkSpeed = 12.5,
+			Damage = 18,
+			AttackRange = 6,
+			AttackCooldown = 2.4,
+			AttackWindup = 0.9,
+			AggroRange = 70,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 3,
+			LightScale = 0,
+			PerNight = { WalkSpeed = 0, Damage = 0, MaxHealth = 0, AggroRange = 0 },
+			Caps = { WalkSpeed = 12.5, Damage = 18, MaxHealth = 100000, AggroRange = 70 },
+		} :: EnemyType,
+		-- A floating spore sac (Level 13). Slow; exhales poison gas around itself and
+		-- bursts into a gas cloud when burned, so burn it from a distance.
+		SporeBloater = {
+			DisplayName = "Spore Bloater",
+			MaxHealth = 35,
+			WalkSpeed = 7,
+			Damage = 0,
+			AttackRange = 7,
+			AttackCooldown = 4,
+			AttackWindup = 1.2,
+			AggroRange = 55,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 5,
+			PerNight = { WalkSpeed = 0.1, Damage = 0, MaxHealth = 3, AggroRange = 0 },
+			Caps = { WalkSpeed = 8, Damage = 0, MaxHealth = 55, AggroRange = 55 },
+		} :: EnemyType,
+		-- The Gorging Chef's rolling minions (Level 14 boss).
+		Meatball = {
+			DisplayName = "Meatball",
+			MaxHealth = 24,
+			WalkSpeed = 12.5,
+			Damage = 10,
+			AttackRange = 4.5,
+			AttackCooldown = 1.6,
+			AttackWindup = 0.6,
+			AggroRange = 80,
+			ShopDrain = 0,
+			ShopDrainInterval = 2,
+			HipHeight = 1.4,
+			PerNight = { WalkSpeed = 0.2, Damage = 0.5, MaxHealth = 2, AggroRange = 0 },
+			Caps = { WalkSpeed = 13.5, Damage = 14, MaxHealth = 36, AggroRange = 80 },
 		} :: EnemyType,
 	},
 

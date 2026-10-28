@@ -16,6 +16,7 @@ local EnemyConfig = require(ReplicatedStorage.Shared.Config.EnemyConfig)
 local Palette = require(ReplicatedStorage.Shared.Config.Palette)
 local Net = require(ReplicatedStorage.Shared.Net)
 local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
+local Telegraph = require(script.Parent.Parent.Util.Telegraph)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local EnemyService = require(script.Parent.EnemyService)
 local GameStateService = require(script.Parent.GameStateService)
@@ -153,12 +154,20 @@ local function onFuseRepaired(fuse: Fuse, player: Player)
 end
 
 local function pickSpawn(): BasePart?
-	if #spawnPoints == 0 then
+	-- a level may use its own spawn points (e.g. the food court's "FoodCourtSpawn")
+	local points = spawnPoints
+	if type(rules.SpawnTag) == "string" then
+		points = {}
+		for _, point in CollectionService:GetTagged(rules.SpawnTag) do
+			table.insert(points, point :: BasePart)
+		end
+	end
+	if #points == 0 then
 		return nil
 	end
 	-- prefer points not right next to a player, so enemies don't pop in on top of anyone
 	local candidates = {}
-	for _, point in spawnPoints do
+	for _, point in points do
 		local tooClose = false
 		for _, player in Players:GetPlayers() do
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -170,7 +179,7 @@ local function pickSpawn(): BasePart?
 			table.insert(candidates, point)
 		end
 	end
-	local pool = if #candidates > 0 then candidates else spawnPoints
+	local pool = if #candidates > 0 then candidates else points
 	return pool[rng:NextInteger(1, #pool)]
 end
 
@@ -328,6 +337,7 @@ local function startDawn()
 	nightToken = nil
 	EnemyService.ClearAll()
 	EnemyService.SetBehavior(nil)
+	Telegraph.clear()
 	ReplicatedStorage:SetAttribute("Wave", 0)
 	ReplicatedStorage:SetAttribute("Blackout", false)
 	ReplicatedStorage:SetAttribute("NightPreset", "")

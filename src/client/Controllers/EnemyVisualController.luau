@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Palette = require(ReplicatedStorage.Shared.Config.Palette)
+local MonsterAnimations = require(script.Parent.MonsterAnimations)
 
 local EnemyVisualController = {}
 
@@ -24,6 +25,8 @@ type Visual = {
 	BarGui: BillboardGui,
 	Gait: number,
 	Dying: boolean,
+	Joints: { [string]: Motor6D }, -- every Motor6D by name (per-type animations)
+	Custom: { [string]: any }, -- per-type animation state
 }
 
 local camera = workspace.CurrentCamera
@@ -145,8 +148,10 @@ local function register(model: Instance)
 	end
 	local legs = {}
 	local body: Motor6D? = nil
+	local joints = {}
 	for _, joint in model:GetDescendants() do
 		if joint:IsA("Motor6D") then
+			joints[joint.Name] = joint
 			if joint.Name == "BodyJoint" then
 				body = joint
 			elseif joint.Name:sub(1, 3) == "Hip" then
@@ -179,6 +184,8 @@ local function register(model: Instance)
 		BarGui = gui,
 		Gait = math.random() * 10,
 		Dying = false,
+		Joints = joints,
+		Custom = {},
 	}
 	visuals[model] = visual
 	burst(root, Color3.fromRGB(60, 10, 100), 25)
@@ -260,6 +267,11 @@ local function animate(visual: Visual, dt: number, now: number)
 		else EYE_COLOR
 	for _, eye in visual.Eyes do
 		eye.Color = eyeColor
+	end
+
+	local extra = MonsterAnimations[model:GetAttribute("EnemyType") or ""]
+	if extra then
+		extra(visual, dt, now)
 	end
 end
 

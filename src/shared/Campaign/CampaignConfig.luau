@@ -20,6 +20,8 @@
 --   ScrapCollected FloodlightBuilt MarkingRevealed (Preparations day)
 --   ShopperRescued EvacueeLost Escaped ShopperFreed (Rescue night)
 --   CannonCharged CannonHelped LightPuzzleSolved CannonFired QueenDefeated (ShadowQueen)
+-- Chapter 2 (the Haunted Food Court):
+--   SlimeScrubbed RestaurantReopened ApplianceExorcised ExorcismHelped CartWrecked (GrandReopening)
 
 local CampaignConfig = {}
 
@@ -73,6 +75,11 @@ CampaignConfig.Events = {
 	LightPuzzleSolved = true,
 	CannonFired = true,
 	QueenDefeated = true,
+	SlimeScrubbed = true,
+	RestaurantReopened = true,
+	ApplianceExorcised = true,
+	ExorcismHelped = true,
+	CartWrecked = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -83,9 +90,9 @@ CampaignConfig.Chapters = {
 	{ Index = 1, Name = "The East Wing", Boss = "The Shadow Queen", Theme = "Blackouts, impostors, stealth, rescue" },
 	{
 		Index = 2,
-		Name = "Food Court",
+		Name = "The Haunted Food Court",
 		Boss = "The Gorging Chef",
-		Theme = "Kitchen hazards, deliveries, infected diners",
+		Theme = "Possessed kitchens, fire, infected deliveries, a freezer monster, a shifting maze",
 	},
 	{
 		Index = 3,
@@ -768,14 +775,105 @@ local levels: { any } = {
 			},
 		},
 	},
-	-- ── Chapter 2: Food Court ───────────────────────────────────────────────
-	planned(
-		8,
-		"Grand Reopening",
-		"Run food deliveries between stalls.",
-		"Grease Fire",
-		"Spreading kitchen fires: extinguish while fighting."
-	),
+	-- ── Chapter 2: The Haunted Food Court ───────────────────────────────────
+	{
+		Id = "L08",
+		Index = 8,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 900, XP = 1000 },
+		Modules = { "GrandReopening" },
+		Day = {
+			Name = "Grand Reopening",
+			Teaser = "Scrub the black slime and reopen the sealed food court's restaurants.",
+			Story = "The food court west of the atrium has been sealed for years. Management wants it open tonight: clean it up and get the restaurants running.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "scrub",
+					Text = "Scrub away the black slime",
+					Event = "SlimeScrubbed",
+					Target = 8,
+					Scope = "Team",
+					Hint = "Take a 🧹 mop from the yellow janitor cart in the food court, then hold E on a slime puddle.",
+					Marker = {
+						Tag = "SlimePuddle",
+						Label = "🧽 SCRUB SLIME",
+						Carry = "Mop",
+						Pickup = "SupplyMop",
+						PickupLabel = "🧹 GRAB A MOP",
+					},
+				},
+				{
+					Id = "reopen",
+					Text = "Reopen the restaurants",
+					Event = "RestaurantReopened",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Hold E at a restaurant's yellow switch box (beside its shutter) to raise it and light the sign.",
+					Marker = { Tag = "ReopenSwitch", Label = "🔑 REOPEN" },
+				},
+				{
+					Id = "myscrub",
+					Text = "Scrub 4 puddles yourself",
+					Event = "SlimeScrubbed",
+					Target = 4,
+					Optional = true,
+				},
+				{
+					Id = "all6",
+					Text = "Team: reopen all 6 restaurants",
+					Event = "RestaurantReopened",
+					Target = 6,
+					Scope = "Team",
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "Kitchen Nightmare",
+			Teaser = "Possessed appliances hurl cutlery and runaway carts charge. Exorcise them with light.",
+			Story = "The kitchens woke up hungry. Possessed appliances are throwing knives and the trolleys are charging. Burn the spirits out!",
+			Duration = 210,
+			Objectives = {
+				{
+					Id = "exorcise",
+					Text = "Exorcise possessed appliances",
+					Event = "ApplianceExorcised",
+					Target = 5,
+					Scope = "Team",
+					Hint = "Possessed appliances glow purple. Hold your flashlight on one until its bar fills: while lit, it can't throw knives.",
+					Marker = { Tag = "PossessedAppliance", Label = "👻 EXORCISE" },
+				},
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{
+					Id = "myexorcisms",
+					Text = "Help exorcise 2 appliances",
+					Event = "ExorcismHelped",
+					Target = 2,
+					Optional = true,
+				},
+				{
+					Id = "carts",
+					Text = "Team: wreck 3 runaway carts",
+					Event = "CartWrecked",
+					Target = 3,
+					Scope = "Team",
+					Optional = true,
+				},
+				{ Id = "nodown", Text = "Don't get knocked down", Kind = "Avoid", Event = "Downed", Optional = true },
+			},
+			Rules = {
+				Tier = 3,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Kitchen",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "👻 The food court's kitchens are possessed! Burn the glowing appliances with your flashlight. Sidestep the red lanes!",
+			},
+		},
+	},
 	planned(
 		9,
 		"Health Inspection",

@@ -97,9 +97,17 @@ local function buildWalls(parent: Instance)
 
 	local outer = HALF + WALL / 2
 	local span = HALF * 2 + WALL * 2
-	-- north & west: solid
+	-- north: solid; west: the doorway into the food court (Chapter 2)
 	wall(Vector3.new(span, h, WALL), Vector3.new(0, h / 2, outer))
-	wall(Vector3.new(WALL, h, span), Vector3.new(-outer, h / 2, 0))
+	local f = Layout.FoodCourt
+	local westSide = HALF + WALL - f.DoorHalfWidth
+	for _, sign in { -1, 1 } do
+		wall(Vector3.new(WALL, h, westSide), Vector3.new(-outer, h / 2, sign * (f.DoorHalfWidth + westSide / 2)))
+	end
+	wall(
+		Vector3.new(WALL, h - f.DoorHeight, f.DoorHalfWidth * 2),
+		Vector3.new(-outer, f.DoorHeight + (h - f.DoorHeight) / 2, 0)
+	)
 
 	-- south: entrance gap
 	local e = Layout.Entrance
@@ -121,7 +129,8 @@ local function buildWalls(parent: Instance)
 	for _, data in
 		{
 			{ Vector3.new(span - 4, 3, 0.3), Vector3.new(0, 1.5, HALF - 0.15) },
-			{ Vector3.new(0.3, 3, span - 4), Vector3.new(-HALF + 0.15, 1.5, 0) },
+			{ Vector3.new(0.3, 3, HALF - 2 - 12), Vector3.new(-HALF + 0.15, 1.5, -(HALF - 2 + 12) / 2) },
+			{ Vector3.new(0.3, 3, HALF - 2 - 12), Vector3.new(-HALF + 0.15, 1.5, (HALF - 2 + 12) / 2) },
 		}
 	do
 		Builder.decor({
@@ -865,7 +874,7 @@ local function buildDressing(parent: Instance, rng: Random)
 			CFrame.lookAt(Vector3.new(-66, 28, 66), Vector3.new(0, 28, 0)),
 			CFrame.lookAt(Vector3.new(66, 30, 66), Vector3.new(0, 30, 0)),
 			CFrame.lookAt(Vector3.new(-66, 4, -66), Vector3.new(0, 4, 0)),
-			CFrame.lookAt(Vector3.new(-69.5, 9, 0), Vector3.new(0, 9, 0)),
+			CFrame.lookAt(Vector3.new(-69.5, 9, 56), Vector3.new(0, 9, 56)),
 		}
 	do
 		Props.lurkerEyes(cf, parent, 1.6)

@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LightingPresets = require(ReplicatedStorage.Shared.Config.LightingPresets)
 local Corridor = require(script.Parent.Corridor)
+local FoodCourt = require(script.Parent.FoodCourt)
 local Lobby = require(script.Parent.Lobby)
 
 local MallBuilder = {}
@@ -52,6 +53,7 @@ function MallBuilder.build(): Model
 	mall.Name = "Mall"
 	Lobby.build(mall)
 	Corridor.build(mall)
+	FoodCourt.build(mall)
 	mall.Parent = workspace
 
 	local parts = 0

@@ -28,10 +28,13 @@ local function active(): boolean
 	return ReplicatedStorage:GetAttribute("StealthNight") == true
 end
 
+-- MoveScale (player attribute, 0..1) is set by the server for slows: frost, grease.
 local function applySpeed()
 	local h = humanoid()
 	if h then
-		h.WalkSpeed = if active() and sneaking then SNEAK_SPEED else NORMAL_SPEED
+		local scale = player:GetAttribute("MoveScale")
+		h.WalkSpeed = (if active() and sneaking then SNEAK_SPEED else NORMAL_SPEED)
+			* (if type(scale) == "number" then math.clamp(scale, 0, 1) else 1)
 	end
 end
 
@@ -110,6 +113,7 @@ function StealthController.Start()
 	ReplicatedStorage:GetAttributeChangedSignal("StealthNight"):Connect(onActive)
 	player:GetAttributeChangedSignal("Noise"):Connect(render)
 	player:GetAttributeChangedSignal("Hidden"):Connect(render)
+	player:GetAttributeChangedSignal("MoveScale"):Connect(applySpeed)
 	player.CharacterAdded:Connect(function(character)
 		character:WaitForChild("Humanoid", 10)
 		applySpeed()

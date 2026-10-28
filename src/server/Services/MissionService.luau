@@ -20,6 +20,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local AchievementConfig = require(ReplicatedStorage.Shared.Campaign.AchievementConfig)
 local CampaignConfig = require(ReplicatedStorage.Shared.Campaign.CampaignConfig)
 local CampaignLogic = require(ReplicatedStorage.Shared.Campaign.CampaignLogic)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -40,6 +41,7 @@ local LEVEL_MODULES: { [string]: any } = {
 	Preparations = require(script.Parent.Parent.Levels.Preparations),
 	Rescue = require(script.Parent.Parent.Levels.Rescue),
 	ShadowQueen = require(script.Parent.Parent.Levels.ShadowQueen),
+	GrandReopening = require(script.Parent.Parent.Levels.GrandReopening),
 }
 
 type Stage = "Day" | "Night"
@@ -106,6 +108,7 @@ local function syncCampaign(player: Player)
 		HttpService:JSONEncode({
 			Completed = keys(campaign.Completed),
 			DayCleared = keys(campaign.DayCleared),
+			Achievements = keys(campaign.Achievements or {}),
 			Next = nextLevelId(player),
 			Vote = votes[player] or nextLevelId(player),
 		})
@@ -267,6 +270,35 @@ local function grantOptional(player: Player, done: { string })
 	end
 end
 
+-- Achievements the player's saved progress now qualifies for, each paid exactly once.
+local function grantAchievements(player: Player)
+	local campaign = campaignOf(player)
+	if not campaign then
+		return
+	end
+	for _, achievement in CampaignLogic.unlockAchievements(campaign, AchievementConfig.List, os.time()) do
+		ProgressionService.AddCash(player, achievement.Cash)
+		ProgressionService.AddXP(player, achievement.XP)
+		Notify.player(
+			player,
+			string.format(
+				"🏆 Achievement: %s %s! +$%d · +%d XP",
+				achievement.Icon,
+				achievement.Name,
+				achievement.Cash,
+				achievement.XP
+			),
+			"levelup"
+		)
+		Notify.effect(player, "Banner", {
+			Title = "🏆 " .. string.upper(achievement.Name),
+			Subtitle = achievement.Description,
+			Color = "Gold",
+			Sound = "LevelUp",
+		})
+	end
+end
+
 local function startStage(newStage: Stage)
 	stage = newStage
 	stageFinal = false
@@ -337,6 +369,7 @@ local function endDay()
 					)
 				end
 				grantOptional(player, CampaignLogic.optionalDone(dayTracker, player.UserId))
+				grantAchievements(player)
 				syncCampaign(player)
 			end
 		end
@@ -432,6 +465,7 @@ local function endNight()
 			if eligible(player) and roster[player] then
 				grantOptional(player, CampaignLogic.optionalDone(nightTracker, player.UserId))
 			end
+			grantAchievements(player)
 			Net.get("MissionResult"):FireClient(player, result)
 			syncCampaign(player)
 			task.spawn(DataService.SaveNow, player)
@@ -580,6 +614,7 @@ function MissionService.Start()
 		for item in data.Equipment do
 			player:SetAttribute("Equip_" .. item, true)
 		end
+		grantAchievements(player) -- e.g. Queen Slayer for a Chapter 1 cleared before achievements
 		syncCampaign(player)
 		publishVotes()
 		markDirty(player)
