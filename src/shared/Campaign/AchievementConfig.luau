@@ -68,7 +68,7 @@ AchievementConfig.List = {
 	{
 		Id = "MazeRunner",
 		Name = "Maze Runner",
-		Description = "Escape the shifting maze yourself (Level 12).",
+		Description = "Escape the shifting maze with a minute to spare (Level 12).",
 		Icon = "🧭",
 		Cash = 150,
 		XP = 150,

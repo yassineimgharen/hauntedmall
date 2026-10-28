@@ -434,6 +434,97 @@ test("L11 module records every event its objectives need", function()
 	recordsAll(L11, "src/server/Levels/HiddenFreezer.luau")
 end)
 
+print("Level 12 · Under the Floor / The Shifting Maze")
+
+local L12 = CampaignConfig.ById.L12
+local R12 = Rules.L12
+
+local function seeded(seed: number): () -> number
+	local state = seed
+	return function()
+		state = (state * 1103515245 + 12345) % 2147483648
+		return state / 2147483648
+	end
+end
+
+test("L12 day: anomalies and chalk marks clear it", function()
+	assert(play(L12.Day, { { "AnomalyFound", 4 }, { "RouteChalked", 4 } }), "cleared")
+	assert(not play(L12.Day, { { "AnomalyFound", 3 }, { "RouteChalked", 5 } }), "3 anomalies")
+	assert(#R12.Anomalies > R12.AnomalyTarget and R12.ChalkSpots > R12.ChalkTarget, "spares")
+end)
+
+test("L12 night: seals are shared, escape is personal; quick escape is a bonus", function()
+	local tracker = Logic.newTracker(L12.Night.Objectives)
+	for _ = 1, 4 do
+		Logic.record(tracker, "A", "SealCollected")
+	end
+	Logic.record(tracker, "B", "MazeEscaped")
+	Logic.record(tracker, "B", "QuickEscape")
+	assert(Logic.requiredComplete(tracker, "B", true), "B escaped")
+	assert(not Logic.requiredComplete(tracker, "A", true), "A still inside")
+	assert(table.find(Logic.optionalDone(tracker, "B"), "escaped"), "quick")
+end)
+
+test("L12 maze: every generated layout connects every cell (100 seeds)", function()
+	for seed = 1, 100 do
+		local walls = Rules.maze(seeded(seed), R12.ExtraOpenings)
+		assert(Rules.mazeConnected(walls), "seed " .. seed)
+		for _, seal in R12.Seals do
+			assert(Rules.mazePath(walls, R12.Entrance, seal), "seal reachable, seed " .. seed)
+		end
+		assert(Rules.mazePath(walls, R12.Entrance, R12.Heart), "heart reachable")
+	end
+end)
+
+test("L12 maze: a carved maze is a spanning tree; extra openings add loops", function()
+	local all = #Rules.allWalls()
+	eq(all, 2 * R12.Cols * (R12.Rows - 1), "interior walls")
+	local function standing(walls)
+		local n = 0
+		for _ in walls do
+			n += 1
+		end
+		return n
+	end
+	local perfect = Rules.maze(seeded(7), 0)
+	eq(all - standing(perfect), R12.Cols * R12.Rows - 1, "cells - 1 passages")
+	local loopy = Rules.maze(seeded(7), R12.ExtraOpenings)
+	eq(standing(perfect) - standing(loopy), R12.ExtraOpenings, "extra openings")
+end)
+
+test("L12 shifts: the diff raises and sinks exactly the changed walls; warning is generous", function()
+	local a, b = Rules.maze(seeded(1), 10), Rules.maze(seeded(2), 10)
+	local rise, sink = Rules.mazeDiff(a, b)
+	for _, key in rise do
+		assert(b[key] and not a[key], "rises " .. key)
+	end
+	for _, key in sink do
+		assert(a[key] and not b[key], "sinks " .. key)
+	end
+	assert(#rise + #sink > 0, "a shift changes something")
+	local stepOff = 2 / MonsterTuning.PlayerSpeed
+	assert(R12.ShiftWarn >= stepOff + 2, "red lines show long before walls rise")
+	assert(R12.ShiftEvery >= 15, "enough time to make progress between shifts")
+	local day = Rules.maze(seeded(R12.DaySeed), R12.ExtraOpenings)
+	local again = Rules.maze(seeded(R12.DaySeed), R12.ExtraOpenings)
+	local same = true
+	for _, key in Rules.allWalls() do
+		same = same and (day[key] == again[key])
+	end
+	assert(same, "the same seed gives the same layout")
+end)
+
+test("L12 scanner: louder when closer, silent far away", function()
+	eq(Rules.signal(0), 1, "on top")
+	eq(Rules.signal(R12.SignalRange + 5), 0, "out of range")
+	assert(Rules.signal(10) > Rules.signal(30), "closer is louder")
+	assert(R12.RevealRange < R12.SignalRange / 4, "the meter matters before it appears")
+end)
+
+test("L12 module records every event its objectives need", function()
+	recordsAll(L12, "src/server/Levels/ShiftingMaze.luau")
+end)
+
 print("Rewards, achievements and saves")
 
 test("achievements: earned once from saved progress, paid once, survive save/load", function()

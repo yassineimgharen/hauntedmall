@@ -26,6 +26,7 @@
 --   ParcelSorted ParcelInspected WrongCall PerfectSort DriverLogFound NestBurned ParcelCreatureKilled (Deliveries)
 --   FrostPrintFound HiddenFreezerOpened FrozenLogRecovered FrozenSolid IceWallMelted FreezerEscaped
 --   CleanEscape (HiddenFreezer)
+--   AnomalyFound RouteChalked SealCollected MazeEscaped QuickEscape (ShiftingMaze)
 
 local CampaignConfig = {}
 
@@ -103,6 +104,11 @@ CampaignConfig.Events = {
 	IceWallMelted = true,
 	FreezerEscaped = true,
 	CleanEscape = true,
+	AnomalyFound = true,
+	RouteChalked = true,
+	SealCollected = true,
+	MazeEscaped = true,
+	QuickEscape = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -1148,13 +1154,87 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(
-		12,
-		"Pipe Dreams",
-		"Route water by turning valves (puzzle).",
-		"Flooded Kitchens",
-		"Rising water and live wires."
-	),
+	{
+		Id = "L12",
+		Index = 12,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1300, XP = 1400 },
+		Modules = { "ShiftingMaze" },
+		Day = {
+			Name = "Under the Floor",
+			Teaser = "Scan the restaurant basement for anomalies and chalk a route through its maze.",
+			Story = "The logbooks mentioned a basement below the kitchen. It's a maze down there, and something hums in the walls.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "anomalies",
+					Text = "Record the anomalies",
+					Event = "AnomalyFound",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Storage room ramp ⬇ to the basement. Your 📡 meter rises near an anomaly; it appears up close. Hold E to record.",
+				},
+				{
+					Id = "chalk",
+					Text = "Chalk the route to the maze's heart",
+					Event = "RouteChalked",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Glowing chalk circles mark the route. Hold E to draw an arrow: it points at the heart, even tonight.",
+					Marker = { Tag = "ChalkSpot", Label = "✏️ DRAW ARROW" },
+				},
+				{
+					Id = "myanomalies",
+					Text = "Record 2 anomalies yourself",
+					Event = "AnomalyFound",
+					Target = 2,
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "The Shifting Maze",
+			Teaser = "The basement maze rearranges itself. Grab four seals, then escape through its heart.",
+			Story = "The basement woke up. Its walls move on their own. Take the four seals and get out through the heart.",
+			Duration = 210,
+			Objectives = {
+				{
+					Id = "seals",
+					Text = "Collect the basement seals",
+					Event = "SealCollected",
+					Target = 4,
+					Scope = "Team",
+					Hint = "One seal in each far corner of the maze. Walls rise where red lines flash: step off them!",
+					Marker = { Tag = "MazeSeal", Label = "🔮 TAKE SEAL" },
+				},
+				{
+					Id = "escape",
+					Text = "Escape through the maze's heart",
+					Event = "MazeEscaped",
+					Hint = "With all four seals, the portal at the centre opens. Follow the chalk arrows!",
+					Marker = { Tag = "MazeHeart", Label = "🌀 ESCAPE" },
+				},
+				{
+					Id = "escaped",
+					Text = "Escape with a minute to spare",
+					Event = "QuickEscape",
+					Optional = true,
+				},
+				{ Id = "nodown", Text = "Don't get knocked down", Kind = "Avoid", Event = "Downed", Optional = true },
+			},
+			Rules = {
+				Tier = 3,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Patrol = true,
+				Preset = "Maze",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "🌀 The basement maze is shifting! Take the 4 seals and escape through its heart.",
+			},
+		},
+	},
 	planned(13, "Feast Prep", "Co-op cooking stations.", "Siege of the Food Court", "Defend the stalls from waves."),
 	planned(14, "The Chef's Warning", "Prepare the kitchen arena.", "The Gorging Chef", "Chapter 2 boss."),
 	-- ── Chapter 3: Underground Parking ──────────────────────────────────────

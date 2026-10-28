@@ -340,4 +340,168 @@ function FoodCourtRules.iceWallSeconds(playerCount: number): number
 	return r.IceWallSeconds + r.IceWallPerPlayer * (players(playerCount) - 1)
 end
 
+-- ── Level 12 · Under the Floor / The Shifting Maze ──────────────────────────
+
+FoodCourtRules.L12 = {
+	Cols = 8,
+	Rows = 8,
+	Entrance = { 2, 1 }, -- where the storage ramp comes down
+	Heart = { 5, 5 }, -- the escape portal
+	Seals = { { 1, 8 }, { 8, 8 }, { 8, 1 }, { 1, 4 } },
+	Anomalies = { { 3, 6 }, { 7, 7 }, { 6, 2 }, { 2, 5 }, { 4, 3 } },
+	AnomalyTarget = 4,
+	RevealRange = 7, -- an anomaly shows itself this close
+	SignalRange = 48, -- the scanner hears it from this far
+	RecordSeconds = 2,
+	ChalkSpots = 5, -- along the day's route from the entrance to the heart
+	ChalkTarget = 4,
+	DaySeed = 812,
+	ExtraOpenings = 10, -- walls knocked out after carving: a few loops make it fairer
+	ShiftEvery = 22,
+	ShiftWarn = 3, -- red lines on the floor before walls rise
+	ShiftMove = 1.5,
+	QuickEscapeLeft = 60, -- escape with this many seconds of night left for the bonus
+	Tier = 3,
+}
+
+-- Walls are keys: "V:c:r" between (c, r) and (c + 1, r); "H:c:r" between (c, r) and (c, r + 1).
+export type Walls = { [string]: boolean }
+
+local function wallBetween(a: { number }, b: { number }): string
+	if a[1] ~= b[1] then
+		return string.format("V:%d:%d", math.min(a[1], b[1]), a[2])
+	end
+	return string.format("H:%d:%d", a[1], math.min(a[2], b[2]))
+end
+
+function FoodCourtRules.allWalls(): { string }
+	local r = FoodCourtRules.L12
+	local list = {}
+	for c = 1, r.Cols do
+		for row = 1, r.Rows do
+			if c < r.Cols then
+				table.insert(list, string.format("V:%d:%d", c, row))
+			end
+			if row < r.Rows then
+				table.insert(list, string.format("H:%d:%d", c, row))
+			end
+		end
+	end
+	return list
+end
+
+local function neighbours(cell: { number }): { { number } }
+	local r = FoodCourtRules.L12
+	local list = {}
+	for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+		local c, row = cell[1] + d[1], cell[2] + d[2]
+		if c >= 1 and row >= 1 and c <= r.Cols and row <= r.Rows then
+			table.insert(list, { c, row })
+		end
+	end
+	return list
+end
+
+-- A maze carved by randomised depth-first search (every cell reachable), then `extra`
+-- walls knocked out for loops. random() → [0, 1).
+function FoodCourtRules.maze(random: () -> number, extra: number?): Walls
+	local r = FoodCourtRules.L12
+	local walls: Walls = {}
+	for _, key in FoodCourtRules.allWalls() do
+		walls[key] = true
+	end
+	local visited = { [r.Entrance[1] + r.Entrance[2] * 100] = true }
+	local stack = { r.Entrance }
+	while #stack > 0 do
+		local cell = stack[#stack]
+		local options = {}
+		for _, n in neighbours(cell) do
+			if not visited[n[1] + n[2] * 100] then
+				table.insert(options, n)
+			end
+		end
+		if #options == 0 then
+			table.remove(stack)
+		else
+			local n = options[math.floor(random() * #options) + 1]
+			walls[wallBetween(cell, n)] = nil
+			visited[n[1] + n[2] * 100] = true
+			table.insert(stack, n)
+		end
+	end
+	local remaining = {}
+	for _, key in FoodCourtRules.allWalls() do
+		if walls[key] then
+			table.insert(remaining, key)
+		end
+	end
+	for _ = 1, math.min(extra or 0, #remaining) do
+		local index = math.floor(random() * #remaining) + 1
+		walls[remaining[index]] = nil
+		table.remove(remaining, index)
+	end
+	return walls
+end
+
+-- Shortest route (list of cells, from first to last) or nil if `to` can't be reached.
+function FoodCourtRules.mazePath(walls: Walls, from: { number }, to: { number }): { { number } }?
+	local key = function(cell: { number }): number
+		return cell[1] + cell[2] * 100
+	end
+	local previous: { [number]: { number } } = {}
+	local seen = { [key(from)] = true }
+	local queue = { from }
+	local head = 1
+	while head <= #queue do
+		local cell = queue[head]
+		head += 1
+		if cell[1] == to[1] and cell[2] == to[2] then
+			local path = { cell }
+			while previous[key(path[1])] do
+				table.insert(path, 1, previous[key(path[1])])
+			end
+			return path
+		end
+		for _, n in neighbours(cell) do
+			if not seen[key(n)] and not walls[wallBetween(cell, n)] then
+				seen[key(n)] = true
+				previous[key(n)] = cell
+				table.insert(queue, n)
+			end
+		end
+	end
+	return nil
+end
+
+-- Every cell reachable from the entrance.
+function FoodCourtRules.mazeConnected(walls: Walls): boolean
+	local r = FoodCourtRules.L12
+	for c = 1, r.Cols do
+		for row = 1, r.Rows do
+			if not FoodCourtRules.mazePath(walls, r.Entrance, { c, row }) then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+-- What a shift does: walls that rise and walls that sink.
+function FoodCourtRules.mazeDiff(from: Walls, to: Walls): ({ string }, { string })
+	local rise, sink = {}, {}
+	for _, key in FoodCourtRules.allWalls() do
+		if to[key] and not from[key] then
+			table.insert(rise, key)
+		elseif from[key] and not to[key] then
+			table.insert(sink, key)
+		end
+	end
+	return rise, sink
+end
+
+-- The anomaly scanner: 1 right on top of it, 0 at SignalRange or further.
+function FoodCourtRules.signal(distance: number): number
+	return math.clamp(1 - distance / FoodCourtRules.L12.SignalRange, 0, 1)
+end
+
 return FoodCourtRules
