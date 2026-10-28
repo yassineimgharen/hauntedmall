@@ -43,6 +43,7 @@ local LEVEL_MODULES: { [string]: any } = {
 	ShadowQueen = require(script.Parent.Parent.Levels.ShadowQueen),
 	GrandReopening = require(script.Parent.Parent.Levels.GrandReopening),
 	KitchenFire = require(script.Parent.Parent.Levels.KitchenFire),
+	Deliveries = require(script.Parent.Parent.Levels.Deliveries),
 }
 
 type Stage = "Day" | "Night"

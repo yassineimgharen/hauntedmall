@@ -227,4 +227,53 @@ function FoodCourtRules.pullLever(pulled: { [string]: number }, lever: string, n
 	return false
 end
 
+-- ── Level 10 · Special Delivery / Return to Sender ──────────────────────────
+
+-- The ten parcels at the dock. Infected ones always carry a UV handprint (seen only in a
+-- flashlight beam); some also have a sender that isn't on the manifest, others look
+-- perfectly legitimate, so reading labels alone isn't enough.
+FoodCourtRules.L10 = {
+	Trusted = { "Patty Co.", "Noodle House Supply", "Dairy Direct", "Sunrise Produce", "Dough Bros.", "Sugar Mill" },
+	Parcels = {
+		{ Sender = "Patty Co.", For = "Moonlight Burgers", Contents = "Frozen patties", Infected = false },
+		{ Sender = "Dairy Direct", For = "Frost Bite Creamery", Contents = "Soft-serve mix", Infected = false },
+		{ Sender = "KITCHEN B-13", For = "(no recipient)", Contents = "L I V E", Infected = true },
+		{ Sender = "Noodle House Supply", For = "Lucky Wok", Contents = "Rice noodles", Infected = false },
+		{ Sender = "Sunrise Produce", For = "Taco Eclipse", Contents = "Avocados", Infected = true },
+		{ Sender = "Dough Bros.", For = "Slice of Night", Contents = "Flour sacks", Infected = false },
+		{ Sender = "████████", For = "THE CHEF", Contents = "KEEP FED", Infected = true },
+		{ Sender = "Sugar Mill", For = "Midnight Donuts", Contents = "Glaze syrup", Infected = false },
+		{ Sender = "Dough Bros.", For = "Slice of Night", Contents = "Mozzarella", Infected = true },
+		{ Sender = "Sunrise Produce", For = "Lucky Wok", Contents = "Bok choy", Infected = false },
+	},
+	SortTarget = 8, -- of 10: two mistakes still clear the day
+	InspectSeconds = 1.2,
+	UVSeconds = 0.4, -- of beam to reveal a parcel's UV status
+	LogbookAfter = 5, -- sorted parcels before the truck's cab opens
+	Nests = 4,
+	NestSeconds = 6, -- of beam to burn a nest (shared)
+	NestEvery = 25, -- each nest hatches a mimic this often
+	Tier = 3,
+}
+
+function FoodCourtRules.isTrusted(sender: string): boolean
+	return table.find(FoodCourtRules.L10.Trusted, sender) ~= nil
+end
+
+-- Quarantine infected parcels, deliver clean ones.
+function FoodCourtRules.isCorrectCall(parcel: { Infected: boolean }, quarantine: boolean): boolean
+	return parcel.Infected == quarantine
+end
+
+-- Parcel creatures alive at once: 2 solo, +1 per extra player, at most 5.
+function FoodCourtRules.mimicCap(playerCount: number): number
+	return math.min(1 + players(playerCount), 5)
+end
+
+-- Disguised mimics waiting when the night starts: infected parcels delivered by
+-- mistake during the day hatch too.
+function FoodCourtRules.initialMimics(playerCount: number, wrongDeliveries: number): number
+	return math.min(2 + math.floor((players(playerCount) - 1) / 2) + wrongDeliveries, 6)
+end
+
 return FoodCourtRules

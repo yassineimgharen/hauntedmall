@@ -297,6 +297,73 @@ test("L09 module records every event its objectives need", function()
 	recordsAll(L09, "src/server/Levels/KitchenFire.luau")
 end)
 
+print("Level 10 · Special Delivery / Return to Sender")
+
+local L10 = CampaignConfig.ById.L10
+local R10 = Rules.L10
+
+test("L10 day: 8 correct calls and the logbook clear it; the perfect bonus needs real work", function()
+	assert(play(L10.Day, { { "ParcelSorted", 8 }, { "DriverLogFound", 1 } }), "cleared")
+	assert(not play(L10.Day, { { "ParcelSorted", 7 }, { "DriverLogFound", 1 } }), "7 calls")
+	local idle = Logic.newTracker(L10.Day.Objectives)
+	assert(not table.find(Logic.optionalDone(idle, "A"), "nowrong"), "doing nothing doesn't earn 'no wrong calls'")
+	local tracker = Logic.newTracker(L10.Day.Objectives)
+	Logic.record(tracker, nil, "PerfectSort")
+	assert(table.find(Logic.optionalDone(tracker, "B"), "nowrong"), "a perfect sort counts for the whole team")
+	local source = fs.readFile("src/server/Levels/Deliveries.luau")
+	assert(source:find("sorted == #R.Parcels and wrongCalls == 0", 1, true), "only all 10 with no mistakes")
+end)
+
+test("L10 parcels: 4 infected, 2 of them only visible by UV; 8 correct calls possible", function()
+	local infected, hidden = 0, 0
+	for _, parcel in R10.Parcels do
+		if parcel.Infected then
+			infected += 1
+			if Rules.isTrusted(parcel.Sender) then
+				hidden += 1 -- the label looks legitimate: only the flashlight catches it
+			end
+		else
+			assert(Rules.isTrusted(parcel.Sender), "clean parcels come from trusted suppliers: " .. parcel.Sender)
+		end
+		assert(Rules.isCorrectCall(parcel, parcel.Infected), "quarantine infected, deliver clean")
+		assert(not Rules.isCorrectCall(parcel, not parcel.Infected), "the other call is wrong")
+	end
+	eq(#R10.Parcels, 10, "parcels")
+	eq(infected, 4, "infected")
+	assert(hidden >= 2, "some infected parcels need the flashlight")
+	assert(#R10.Parcels - R10.SortTarget >= 2, "room for two mistakes")
+	assert(R10.LogbookAfter <= R10.SortTarget, "the logbook opens before the day's goal")
+end)
+
+test("L10 night: 4 nests and surviving clear it", function()
+	assert(play(L10.Night, { { "NestBurned", 4 } }), "cleared")
+	assert(not play(L10.Night, { { "NestBurned", 3 }, { "ParcelCreatureKilled", 20 } }), "kills don't replace nests")
+end)
+
+test("L10 balance: creature caps grow gently; day mistakes add mimics", function()
+	eq(Rules.mimicCap(1), 2, "solo")
+	eq(Rules.mimicCap(4), 5, "team of 4")
+	eq(Rules.mimicCap(10), 5, "cap")
+	eq(Rules.initialMimics(1, 0), 2, "solo start")
+	eq(Rules.initialMimics(1, 2), 4, "two infected parcels delivered")
+	eq(Rules.initialMimics(8, 9), 6, "hard cap")
+	assert(R10.NestSeconds <= EnemyConfig.Flashlight.BatterySeconds, "a nest burns in one battery")
+end)
+
+test("L10 mimics: disguise, a visible pounce warning, a split into mites", function()
+	local m = MonsterTuning.Mimic
+	assert(m.RevealRange >= 8, "you see it wake up before it can reach you")
+	assert(m.RevealPause + m.PounceWarn >= 1.5, "time to react after it bursts open")
+	assert((m.PounceRadius + 1) / MonsterTuning.PlayerSpeed < m.PounceWarn, "the landing circle can be left in time")
+	eq(m.Split, 2, "two mites")
+	local mite = EnemyConfig.Types.ParcelMite
+	assert(mite.MaxHealth <= 20 and mite.Damage <= 8, "mites are weak")
+end)
+
+test("L10 module records every event its objectives need", function()
+	recordsAll(L10, "src/server/Levels/Deliveries.luau")
+end)
+
 print("Rewards, achievements and saves")
 
 test("achievements: earned once from saved progress, paid once, survive save/load", function()

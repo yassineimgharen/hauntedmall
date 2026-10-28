@@ -23,6 +23,7 @@
 -- Chapter 2 (the Haunted Food Court):
 --   SlimeScrubbed RestaurantReopened ApplianceExorcised ExorcismHelped CartWrecked (GrandReopening)
 --   CableSpliced SwitchboardReset GasValveClosed FireEscaped FireExtinguished (KitchenFire)
+--   ParcelSorted ParcelInspected WrongCall PerfectSort DriverLogFound NestBurned ParcelCreatureKilled (Deliveries)
 
 local CampaignConfig = {}
 
@@ -86,6 +87,13 @@ CampaignConfig.Events = {
 	GasValveClosed = true,
 	FireEscaped = true,
 	FireExtinguished = true,
+	ParcelSorted = true,
+	ParcelInspected = true,
+	WrongCall = true,
+	PerfectSort = true,
+	DriverLogFound = true,
+	NestBurned = true,
+	ParcelCreatureKilled = true,
 }
 
 -- Rewards for replaying an already-cleared level, and per optional objective (first time).
@@ -961,13 +969,88 @@ local levels: { any } = {
 			},
 		},
 	},
-	planned(
-		10,
-		"Lost Recipes",
-		"Investigate the stalls for scattered recipe pages.",
-		"Infected Diners",
-		"Cure infected customers with light before they turn."
-	),
+	{
+		Id = "L10",
+		Index = 10,
+		Chapter = 2,
+		Implemented = true,
+		Rewards = { Cash = 1100, XP = 1200 },
+		Modules = { "Deliveries" },
+		Day = {
+			Name = "Special Delivery",
+			Teaser = "Inspect mysterious parcels: read the labels, check for UV handprints, deliver or quarantine.",
+			Story = "Ten parcels arrived at the loading dock overnight. Nobody ordered them. Check every one before it reaches a kitchen.",
+			Duration = 240,
+			Objectives = {
+				{
+					Id = "sort",
+					Text = "Sort the deliveries correctly",
+					Event = "ParcelSorted",
+					Target = 8,
+					Scope = "Team",
+					Hint = "Inspect a parcel (hold E), shine your flashlight on it for a UV handprint, then Deliver (E) or Quarantine (Q).",
+					Marker = { Tag = "DeliveryParcel", Label = "📦 INSPECT PARCEL" },
+				},
+				{
+					Id = "logbook",
+					Text = "Read the driver's logbook",
+					Event = "DriverLogFound",
+					Scope = "Team",
+					Hint = "After 5 parcels the delivery truck's cab opens. Hold E at its side door.",
+					Marker = { Tag = "TruckCab", Label = "📓 READ LOGBOOK" },
+				},
+				{
+					Id = "inspect",
+					Text = "Inspect 3 parcels yourself",
+					Event = "ParcelInspected",
+					Target = 3,
+					Optional = true,
+				},
+				{
+					Id = "nowrong",
+					Text = "Team: sort all 10 with no wrong calls",
+					Event = "PerfectSort",
+					Scope = "Team",
+					Optional = true,
+				},
+			},
+		},
+		Night = {
+			Name = "Return to Sender",
+			Teaser = "Infected nests hatch Parcel Mimics that hide among real boxes. Burn the nests.",
+			Story = "The infected cargo is hatching. Parcel Mimics hide among ordinary boxes. Burn their nests before they fill the court.",
+			Duration = 210,
+			Objectives = {
+				{
+					Id = "nests",
+					Text = "Burn the infected nests",
+					Event = "NestBurned",
+					Target = 4,
+					Scope = "Team",
+					Hint = "Pulsing purple nests: dock, service corridor and two restaurants. Hold your flashlight on one until its bar fills.",
+					Marker = { Tag = "InfectedNest", Label = "🔥 BURN NEST" },
+				},
+				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
+				{
+					Id = "creatures",
+					Text = "Destroy 6 parcel creatures",
+					Event = "ParcelCreatureKilled",
+					Target = 6,
+					Optional = true,
+				},
+				{ Id = "nodown", Text = "Don't get knocked down", Kind = "Avoid", Event = "Downed", Optional = true },
+			},
+			Rules = {
+				Tier = 3,
+				Fuses = false,
+				Blackout = false,
+				NoWaves = true,
+				Preset = "Delivery",
+				SpawnTag = "FoodCourtSpawn",
+				Intro = "📦 The deliveries are hatching! Any box could be a Parcel Mimic. Burn the infected nests!",
+			},
+		},
+	},
 	planned(
 		11,
 		"Supply Run",
