@@ -26,7 +26,31 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §C4: Chapter 2, the Haunted Food Court (Levels 8–14): test this first
+## §L9: Level 9 fixes (switchboard, fire, completion): test this first
+
+Setup: Workspace `MissionTest_Level` = `L09` (string) before Play, no `FastPhases`. Play the day normally (don't use `MissionTest_CompleteStage` for the switchboard: it marks the objective but doesn't move the breakers).
+
+**Day: Live Wires**
+- [ ] L9-1 Each breaker in the maintenance corridor has a big label visible from far away: "🔒 BREAKER A · splice cables 0/5". It counts up as cables are spliced.
+- [ ] L9-2 After the 5th cable: banner "🔌 CABLES SPLICED" telling you to pull BREAKER A and B; labels change to "⚡ BREAKER A · PULL" (gold), and the guide arrow points at the nearest breaker.
+- [ ] L9-3 Pull one breaker (hold E 0.5 s): the handle flips, its light turns green, a banner "⚡ BREAKER A ON" appears, and a **countdown bar at the top of the screen** reads "⚡ PULL BREAKER B · 9.8s". Solo it's **10 s**, with 2+ players 8 s. The guide arrow now points at **the other** breaker, whose label counts down too.
+- [ ] L9-4 **Success:** reach the other breaker in time: "✅ POWER RESTORED", the lights stop flickering, the countdown disappears, and the objective "Reset the main switchboard" ticks ✓. Solo, sprinting straight down the corridor should leave about 4 s to spare.
+- [ ] L9-5 **Failure and retry:** wait out the timer: "⏱️ TOO SLOW: BREAKERS RESET", the handle flips back, and you can pull either breaker again straight away. Pulling the breaker that's already on restarts its timer ("TIMER RESTARTED").
+
+**Night: Grease Fire**
+- [ ] L9-6 Lighting is grey and smoky now (not all orange), so the fire stands out: bright orange-red floor glow, tall yellow-orange flames, black smoke columns, warm light from some cells.
+- [ ] L9-7 Spread warning: a new cell first glows dark red with thin smoke for about 2.5 s (harmless), then bursts into flames. Fire crosses into the dining hall **only through the kitchen doorways**, not through the wall.
+- [ ] L9-8 Standing in flames: −12 about once a second and "🔥 YOU'RE BURNING! GET OUT!". Burnt floor stays charred after the fire is gone.
+- [ ] L9-9 Extinguisher: red cabinets labelled "🧯 EXTINGUISHER". Take one ("8 sprays"), then "Spray" (hold 0.4 s) at a fire: white foam and steam puff, "💨 3 FIRES OUT!", "🧯 7/8 sprays left". The foamed floor stays white for 25 s (can't reignite), then turns charred.
+- [ ] L9-10 Gas mains: red labels visible through walls, e.g. "🔥 STORAGE GAS MAIN: ON". After shutting one, the toast lists the ones still open and that label turns green, then hides.
+- [ ] L9-11 After the 3rd: "🚪 EXIT UNLOCKED", the dock barrier lifts and a **green light column** with "🚪 EMERGENCY EXIT" appears on the landing.
+- [ ] L9-12 Walk onto the landing: "You escaped the fire!" plus a personal message: "the level completes at dawn", or a ⚠️ warning if your Day 9 wasn't cleared. The HUD hint says the same. When **everyone** is out: "🚪 EVERYONE'S OUT!" and dawn comes about 10 s later.
+- [ ] L9-13 Dawn with day and night done: LEVEL COMPLETE (+$1,000 · 1,100 XP) and "Level 10 unlocked". Without the day cleared: "DAY NOT CLEARED" and Level 9 stays your next level. Replaying L09: "LEVEL REPLAYED", reduced reward.
+- [ ] L9-14 FPS (Shift+F5) with the fire at its biggest. Please send the number.
+
+**Short checklist for the Dell:** L9-3, **L9-4**, L9-5, L9-6, L9-7, L9-9, L9-11, L9-12, L9-13, L9-14.
+
+## §C4: Chapter 2, the Haunted Food Court (Levels 8–14)
 
 The food court is a new wing **west of the atrium**: walk through the big doorway under the gold "🍔 FOOD COURT ›" sign (west wall, opposite the East Wing).
 

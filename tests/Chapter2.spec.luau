@@ -191,10 +191,203 @@ print("Level 9 · Live Wires / Grease Fire")
 local L09 = CampaignConfig.ById.L09
 local R9 = Rules.L09
 
-test("L09 day: 5 spliced cables and the switchboard clear it", function()
+test("L09 cables: team progress caps at 5; the personal bonus counts your own", function()
+	local tracker = Logic.newTracker(L09.Day.Objectives)
+	for _ = 1, 3 do
+		Logic.record(tracker, "A", "CableSpliced")
+	end
+	Logic.record(tracker, "B", "CableSpliced")
+	eq(Logic.value(tracker, "A", L09.Day.Objectives[1]), 4, "team at 4")
+	Logic.record(tracker, "B", "CableSpliced")
+	Logic.record(tracker, "B", "CableSpliced")
+	eq(Logic.value(tracker, "A", L09.Day.Objectives[1]), 5, "capped at 5 (6 spliced)")
+	assert(table.find(Logic.optionalDone(tracker, "A"), "mysplice"), "A spliced 2+")
+	eq(R9.CableTarget, L09.Day.Objectives[1].Target, "the module unlocks the breakers at the objective's target")
+	assert(R9.Cables > R9.CableTarget, "a spare cable")
+end)
+
+test("L09 cables: the safe window fits a splice with time to react; live shocks", function()
+	assert(R9.Safe >= R9.SpliceSeconds + 1, "a second of slack")
+	local cycle = R9.Live + R9.Safe
+	local live, left = Rules.cablePhase(0.5, 0)
+	eq(live, "Live", "starts live")
+	assert(math.abs(left - (R9.Live - 0.5)) < 1e-9, "time left")
+	eq((Rules.cablePhase(R9.Live + 0.1, 0)), "Safe", "then safe")
+	eq((Rules.cablePhase(cycle + 0.1, 0)), "Live", "and repeats")
+	assert(R9.ShockDamage <= 15, "shocks sting, not kill")
+end)
+
+test("L09 breakers: second breaker in time completes; late resets; re-pulling restarts", function()
+	local w = R9.Window
+	local s = { Held = nil, Since = 0 }
+	eq(Rules.pullBreaker(s, "A", 0, w), "Armed", "first breaker holds")
+	eq(s.Held, "A", "A held")
+	eq(Rules.pullBreaker(s, "B", w - 0.1, w), "Done", "second just in time")
+	eq(s.Held, nil, "nothing held after")
+
+	local late = { Held = nil, Since = 0 }
+	Rules.pullBreaker(late, "A", 0, w)
+	assert(not Rules.breakerExpired(late, w - 0.1, w), "still running")
+	eq(Rules.breakerLeft(late, w - 2, w), 2, "seconds left")
+	assert(Rules.breakerExpired(late, w + 0.1, w), "expires after the window")
+	eq(late.Held, nil, "released")
+	eq(Rules.pullBreaker(late, "B", w + 0.5, w), "Armed", "too late: B just starts a new attempt")
+	eq(Rules.pullBreaker(late, "B", w + 3, w), "Restarted", "pulling the held one again restarts its timer")
+	eq(Rules.breakerLeft(late, w + 3, w), w, "full time again")
+	eq(Rules.pullBreaker(late, "A", w + 3 + w - 0.5, w), "Done", "then A in time")
+
+	local stale = { Held = nil, Since = 0 }
+	Rules.pullBreaker(stale, "A", 0, w)
+	eq(Rules.pullBreaker(stale, "B", w + 1, w), "Armed", "a held breaker that ran out never completes it")
+end)
+
+test("L09 breakers: solo gets a longer window, and it's a sprint, not a coin flip", function()
+	eq(Rules.leverWindow(1), R9.SoloWindow, "solo")
+	eq(Rules.leverWindow(0), R9.SoloWindow, "empty server counts as solo")
+	eq(Rules.leverWindow(3), R9.Window, "team")
+	local run = R9.LeverDistance / MonsterTuning.PlayerSpeed
+	local solo = run + R9.LeverSeconds + 1.5 -- turning round and reacting
+	assert(solo <= R9.SoloWindow - 2, string.format("solo needs %.1fs of %ds", solo, R9.SoloWindow))
+	assert(run > R9.SoloWindow * 0.4, "still a real sprint")
+	assert(R9.Window >= R9.LeverSeconds + 3, "a teammate waiting at the other breaker has time")
+end)
+
+test("L09 day: the switchboard completes the day; missing it doesn't", function()
 	assert(play(L09.Day, { { "CableSpliced", 5 }, { "SwitchboardReset", 1 } }), "cleared")
 	assert(not play(L09.Day, { { "CableSpliced", 4 }, { "SwitchboardReset", 1 } }), "4 cables")
-	assert(not play(L09.Day, { { "CableSpliced", 6 } }), "no switchboard")
+	assert(not play(L09.Day, { { "CableSpliced", 6 } }), "no switchboard: the day isn't cleared (the reported case)")
+	local source = fs.readFile("src/server/Levels/KitchenFire.luau")
+	assert(source:find('if result == "Done" then', 1, true), "a completed pull is handled")
+	assert(source:find('MissionEvents.record(player, "SwitchboardReset")', 1, true), "and recorded")
+	assert(source:find('"Done", if on then true else nil', 1, true), "a held breaker hands the guide arrow to the other")
+end)
+
+test("L09 fire grid: kitchen and hall, aligned to the kitchen wall; restaurants stay safe", function()
+	eq(R9.OriginX + R9.WallCol * R9.Cell, -184, "the wall is a column edge")
+	eq(R9.OriginZ, -48, "south edge = restaurant fronts")
+	eq(R9.OriginZ + R9.Rows * R9.Cell, 48, "north edge")
+	assert(R9.OriginX + R9.Cols * R9.Cell <= -99, "doesn't reach past the hall's east wall")
+	eq((Rules.cellAt(-141, -57)), nil, "a south restaurant is outside the grid")
+	local c, r = Rules.cellAt(-247.9, -47.9)
+	eq(c, 1, "first column")
+	eq(r, 1, "first row")
+	local x, z = Rules.cellCenter(1, 1)
+	eq(x, -244, "centre x")
+	eq(z, -44, "centre z")
+end)
+
+test("L09 fire: crosses the kitchen wall only at the doorways", function()
+	local w = R9.WallCol
+	for _, row in R9.DoorRows do
+		local doorZ = R9.OriginZ + (row - 0.5) * R9.Cell
+		local inDoor = (doorZ >= -31 and doorZ <= -19) or (doorZ >= -7 and doorZ <= 7) or (doorZ >= 19 and doorZ <= 31)
+		assert(inDoor, "door row " .. row .. " (z " .. doorZ .. ") overlaps a doorway")
+		assert(Rules.canSpread(w, row, w + 1, row), "through the door, row " .. row)
+	end
+	assert(not Rules.canSpread(w, 1, w + 1, 1), "solid wall at row 1")
+	assert(not Rules.canSpread(w + 1, 12, w, 12), "solid wall the other way")
+	assert(Rules.canSpread(w, 1, w, 2), "along the wall is fine")
+	assert(Rules.canSpread(3, 5, 4, 5), "open floor")
+	local grid = Rules.fireGrid()
+	Rules.ignite(grid, w, 1, 0)
+	for _ = 1, 50 do
+		Rules.spread(grid, 0, 1, function()
+			return 0.01 -- always tries the +x neighbour (through the wall)
+		end)
+	end
+	eq(grid.Smolder[Rules.cellKey(grid, w + 1, 1)], nil, "never through the solid wall")
+end)
+
+test("L09 fire: a cell smoulders (harmless warning) before it bursts into flame", function()
+	local grid = Rules.fireGrid()
+	assert(Rules.ignite(grid, 5, 5, 0), "start fire")
+	local i = 0
+	local lit = Rules.spread(grid, 0, 1, function()
+		i += 1
+		return if i % 2 == 1 then 0 else 0.3 -- chance passes, then direction -x
+	end)
+	eq(#lit, 1, "one neighbour caught")
+	local key = lit[1]
+	assert(grid.Smolder[key] and not grid.Burning[key], "smouldering first: no damage yet")
+	eq(#Rules.advance(grid, R9.SmolderSeconds - 0.1), 0, "not yet")
+	eq(#Rules.advance(grid, R9.SmolderSeconds + 0.1), 1, "then flames")
+	assert(grid.Burning[key] and not grid.Smolder[key], "burning now")
+	eq(grid.Count, 2, "count includes both")
+	assert(R9.SmolderSeconds >= 2, "long enough to step away")
+end)
+
+test("L09 fire: respects protected and wet cells and the cap", function()
+	local grid = Rules.fireGrid()
+	assert(Rules.ignite(grid, 5, 5, 0), "lights")
+	assert(not Rules.ignite(grid, 5, 5, 0), "already burning")
+	grid.Protected[Rules.cellKey(grid, 6, 5)] = true
+	assert(not Rules.ignite(grid, 6, 5, 0), "protected")
+	assert(not Rules.smolder(grid, 6, 5, 0), "protected from smoulder too")
+	eq(#Rules.spread(grid, 0, 0, function()
+		return 0
+	end), 0, "chance 0: no spread")
+	local full = Rules.fireGrid()
+	for c = 1, R9.Cols do
+		for r = 1, R9.Rows do
+			Rules.smolder(full, c, r, 0)
+		end
+	end
+	eq(full.Count, R9.MaxBurning, "never above the cap")
+end)
+
+test("L09 extinguisher: a spray puts out a cross (burning or smouldering) and leaves it wet", function()
+	local grid = Rules.fireGrid()
+	Rules.ignite(grid, 5, 5, 0)
+	Rules.ignite(grid, 6, 5, 0)
+	Rules.smolder(grid, 5, 6, 0)
+	Rules.ignite(grid, 7, 5, 0) -- outside the cross
+	local out = Rules.extinguish(grid, 5, 5, 10)
+	eq(#out, 3, "two burning and one smouldering put out")
+	eq(grid.Count, 1, "the far one keeps burning")
+	assert(grid.Burning[Rules.cellKey(grid, 7, 5)], "out of reach")
+	assert(not Rules.ignite(grid, 4, 5, 10 + R9.WetSeconds - 1), "foam: neighbour still wet")
+	assert(Rules.ignite(grid, 4, 5, 10 + R9.WetSeconds + 1), "dries out")
+	assert(R9.Charges * 5 >= 30, "one extinguisher can put out a lot of fire")
+end)
+
+test("L09 gas valves: each slows the fire, all three stop it and finish the objective", function()
+	local last = math.huge
+	for closed = 0, R9.Valves do
+		local chance = Rules.spreadChance(closed)
+		assert(chance < last, "slower with each valve")
+		last = chance
+	end
+	eq(Rules.spreadChance(R9.Valves), 0, "stopped")
+	eq(Rules.spreadChance(R9.Valves + 2), 0, "clamped")
+	local tracker = Logic.newTracker(L09.Night.Objectives)
+	Logic.record(tracker, "A", "GasValveClosed")
+	Logic.record(tracker, "B", "GasValveClosed")
+	assert(not Logic.isDone(tracker, "A", L09.Night.Objectives[1]), "2 of 3")
+	Logic.record(tracker, "A", "GasValveClosed")
+	assert(Logic.isDone(tracker, "B", L09.Night.Objectives[1]), "3 of 3 for the whole team")
+end)
+
+test("L09 emergency exit: detection on the landing only", function()
+	assert(Rules.onDockLanding(0, 3, 0), "centre of the landing")
+	assert(Rules.onDockLanding(8, 3, -7), "corner")
+	assert(not Rules.onDockLanding(0, 3, 9), "still inside the dock (north of the door)")
+	assert(not Rules.onDockLanding(12, 3, 0), "beside the landing")
+	assert(not Rules.onDockLanding(0, 20, 0), "above it")
+	local source = fs.readFile("src/server/Levels/KitchenFire.luau")
+	assert(source:find("if valvesClosed < R.Valves then", 1, true), "escape counts only once the exit is open")
+end)
+
+test("L09 night: everyone escaping brings dawn early", function()
+	assert(not Rules.allEscaped({}, {}), "empty server")
+	assert(not Rules.allEscaped({ "A", "B" }, { A = true }), "B still inside")
+	assert(Rules.allEscaped({ "A", "B" }, { A = true, B = true }), "all out")
+	assert(R9.AllOutDawn <= 15, "short wait")
+end)
+
+test("L09 fairness: fire hurts but can be crossed", function()
+	local secondsToDown = 100 / R9.FireDamage * EnemyConfig.Combat.PlayerHitGrace
+	assert(secondsToDown >= 8, string.format("%.1fs standing in fire before going down", secondsToDown))
+	assert(R9.MaxBurning < R9.Cols * R9.Rows / 3, "most of the floor never burns at once")
 end)
 
 test("L09 night: gas off is shared, but everyone must escape themselves", function()
@@ -209,89 +402,32 @@ test("L09 night: gas off is shared, but everyone must escape themselves", functi
 	assert(table.find(Logic.optionalDone(tracker, "B"), "fires"), "12 fires out in one go counts")
 end)
 
-test("L09 cables: the safe window fits a splice with time to react; live shocks", function()
-	assert(R9.Safe >= R9.SpliceSeconds + 1, "a second of slack")
-	local cycle = R9.Live + R9.Safe
-	local live, left = Rules.cablePhase(0.5, 0)
-	eq(live, "Live", "starts live")
-	assert(math.abs(left - (R9.Live - 0.5)) < 1e-9, "time left")
-	eq((Rules.cablePhase(R9.Live + 0.1, 0)), "Safe", "then safe")
-	eq((Rules.cablePhase(cycle + 0.1, 0)), "Live", "and repeats")
-	assert(R9.Cables >= 6 and R9.ShockDamage <= 15, "spare cables; shocks sting, not kill")
-end)
-
-test("L09 switchboard: both levers within the window; solo can sprint it", function()
-	local pulled = {}
-	assert(not Rules.pullLever(pulled, "A", 0), "first lever waits")
-	assert(Rules.pullLever(pulled, "B", R9.Window - 0.5), "second in time")
-	local late = {}
-	Rules.pullLever(late, "A", 0)
-	assert(not Rules.pullLever(late, "B", R9.Window + 0.5), "too slow")
-	assert(not Rules.pullLever(late, "B", R9.Window + 0.6), "the same lever twice doesn't count")
-	local solo = R9.LeverDistance / MonsterTuning.PlayerSpeed + R9.LeverSeconds * 2
-	assert(solo <= R9.Window - 1.5, string.format("solo sprint %.1fs fits the window", solo))
-end)
-
-test("L09 fire grid covers exactly the kitchen and dining hall (restaurants stay safe)", function()
-	eq(R9.OriginX + R9.Cols * R9.Cell, -98, "east edge = hall wall")
-	eq(R9.OriginZ, -48, "south edge = restaurant fronts")
-	eq(R9.OriginZ + R9.Rows * R9.Cell, 48, "north edge")
-	local c, r = Rules.cellAt(-141, -57)
-	eq(c, nil, "a south restaurant is outside the grid")
-	c, r = Rules.cellAt(-249.9, -47.9)
-	eq(c, 1, "first column")
-	eq(r, 1, "first row")
-	local x, z = Rules.cellCenter(1, 1)
-	eq(x, -246, "centre x")
-	eq(z, -44, "centre z")
-end)
-
-test("L09 fire: spreads, respects protected and wet cells and the cap", function()
-	local grid = Rules.fireGrid()
-	assert(Rules.ignite(grid, 5, 5, 0), "lights")
-	assert(not Rules.ignite(grid, 5, 5, 0), "already burning")
-	grid.Protected[Rules.cellKey(grid, 6, 5)] = true
-	assert(not Rules.ignite(grid, 6, 5, 0), "protected")
-	eq(#Rules.spread(grid, 0, 0, function()
-		return 0
-	end), 0, "chance 0: no spread")
-	local out = Rules.extinguish(grid, 5, 5, 10)
-	eq(#out, 1, "put out")
-	eq(grid.Count, 0, "count")
-	assert(not Rules.ignite(grid, 5, 6, 10 + R9.WetSeconds - 1), "neighbour still wet")
-	assert(Rules.ignite(grid, 5, 6, 10 + R9.WetSeconds + 1), "dries out")
-	local full = Rules.fireGrid()
-	for i = 1, R9.Cols do
-		for j = 1, R9.Rows do
-			Rules.ignite(full, i, j, 0)
-		end
+test("L09 completion: needs the day cleared; then Level 10 unlocks; rewards pay once", function()
+	local function outcome(dayCleared: boolean, already: boolean)
+		return Logic.outcome({
+			Eligible = true,
+			InRoster = true,
+			DayCleared = dayCleared,
+			NightSuccess = true,
+			AlreadyCompleted = already,
+		})
 	end
-	eq(full.Count, R9.MaxBurning, "never above the cap")
-end)
-
-test("L09 fire: closing valves slows and then stops the spread", function()
-	local last = math.huge
-	for closed = 0, R9.Valves do
-		local chance = Rules.spreadChance(closed)
-		assert(chance < last, "slower with each valve")
-		last = chance
+	eq(outcome(false, false), "DayMissing", "night done but switchboard missed: no level credit")
+	eq(outcome(true, false), "FirstClear", "day and night done")
+	local completed = {}
+	for i = 1, 8 do
+		completed[string.format("L%02d", i)] = 1
 	end
-	eq(Rules.spreadChance(R9.Valves), 0, "stopped")
-	local grid = Rules.fireGrid()
-	Rules.ignite(grid, 10, 6, 0)
-	local i = 0
-	local lit = Rules.spread(grid, 0, 1, function()
-		i += 1
-		return if i % 2 == 0 then 0.1 else 0
-	end)
-	eq(#lit, 1, "chance 1 lights a neighbour")
-end)
-
-test("L09 fairness: fire hurts but can be crossed; an extinguisher clears a path", function()
-	local secondsToDown = 100 / R9.FireDamage * EnemyConfig.Combat.PlayerHitGrace
-	assert(secondsToDown >= 8, string.format("%.1fs standing in fire before going down", secondsToDown))
-	assert(R9.Charges * 5 >= 30, "one extinguisher can put out a lot of fire")
-	assert(R9.MaxBurning < R9.Cols * R9.Rows / 3, "most of the floor never burns at once")
+	assert(not Logic.isUnlocked(CampaignConfig.Levels, completed, "L10"), "L10 locked before L09")
+	eq(Logic.nextLevel(CampaignConfig.Levels, completed).Id, "L09", "L09 stays next after a DayMissing night")
+	completed.L09 = 1
+	assert(Logic.isUnlocked(CampaignConfig.Levels, completed, "L10"), "L10 unlocks")
+	eq(outcome(true, true), "Replay", "replaying is a replay")
+	local first = Logic.reward(L09.Rewards, true, CampaignConfig.ReplayFraction)
+	local replay = Logic.reward(L09.Rewards, false, CampaignConfig.ReplayFraction)
+	eq(first.Cash, L09.Rewards.Cash, "full first time")
+	assert(replay.Cash < first.Cash, "reduced afterwards")
+	eq(L09.ChapterReward, nil, "no chapter reward on Level 9")
 end)
 
 test("L09 module records every event its objectives need", function()

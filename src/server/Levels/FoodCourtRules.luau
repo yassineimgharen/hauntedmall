@@ -76,30 +76,37 @@ end
 FoodCourtRules.L09 = {
 	-- day: cables cycle Live (sparking: no splicing, shocks anyone close) → Safe
 	Cables = 6, -- 5 to splice (team)
+	CableTarget = 5,
 	Live = 2,
 	Safe = 3.2,
 	SpliceSeconds = 1.4, -- must fit in the safe window, with time to react
 	ShockRadius = 5,
 	ShockDamage = 10,
-	-- the switchboard: both levers within Window seconds (one player can sprint it)
+	-- the switchboard: pull one breaker, then the other before the timer runs out
 	LeverDistance = 74,
 	LeverSeconds = 0.5,
-	Window = 8,
-	-- night: the fire grid over the grand kitchen and dining hall
-	Cols = 19,
+	Window = 8, -- two or more players (one can wait at each breaker)
+	SoloWindow = 10, -- alone you have to sprint the corridor
+	-- night: the fire grid over the grand kitchen and dining hall. Column 8 | 9 is the
+	-- kitchen wall (x = -184): fire only crosses it through the three kitchen doorways.
+	Cols = 18,
 	Rows = 12,
 	Cell = 8,
-	OriginX = -250, -- west edge
-	OriginZ = -48, -- south edge
+	OriginX = -248, -- west edge (the kitchen's west wall face is at -249)
+	OriginZ = -48, -- south edge (the restaurant fronts)
+	WallCol = 8,
+	DoorRows = { 3, 4, 6, 7, 9, 10 }, -- rows overlapping the doorways at z -30..-20, -6..6, 20..30
 	StartFires = 3,
 	SpreadEvery = 3,
 	SpreadChance = { 0.25, 0.15, 0.07, 0 }, -- by gas valves closed (0..3)
-	MaxBurning = 55,
+	SmolderSeconds = 2.5, -- a cell glows and smokes (warning, harmless) before it bursts into flame
+	MaxBurning = 55, -- burning + smouldering
 	WetSeconds = 25, -- a sprayed cell can't reignite for this long
 	FireDamage = 12, -- per hit (players can't be hit more than once per PlayerHitGrace)
 	Charges = 8, -- sprays per extinguisher
 	Valves = 3,
 	ValveSeconds = 3,
+	AllOutDawn = 10, -- once everyone has escaped, dawn comes this many seconds later
 	Tier = 2,
 }
 
@@ -107,14 +114,15 @@ export type FireGrid = {
 	Cols: number,
 	Rows: number,
 	Burning: { [number]: boolean },
+	Smolder: { [number]: number }, -- key → clock time it bursts into flame
 	Wet: { [number]: number }, -- key → clock time it can burn again
 	Protected: { [number]: boolean }, -- never burns (extinguisher stations, valves)
-	Count: number,
+	Count: number, -- burning + smouldering
 }
 
 function FoodCourtRules.fireGrid(): FireGrid
 	local r = FoodCourtRules.L09
-	return { Cols = r.Cols, Rows = r.Rows, Burning = {}, Wet = {}, Protected = {}, Count = 0 }
+	return { Cols = r.Cols, Rows = r.Rows, Burning = {}, Smolder = {}, Wet = {}, Protected = {}, Count = 0 }
 end
 
 function FoodCourtRules.cellKey(grid: FireGrid, c: number, r: number): number?
@@ -143,24 +151,50 @@ function FoodCourtRules.cellCenter(c: number, row: number): (number, number)
 	return r.OriginX + (c - 0.5) * r.Cell, r.OriginZ + (row - 0.5) * r.Cell
 end
 
--- Lights a cell; false if it's outside, already burning, protected, still wet or at the cap.
+-- Can fire pass between two neighbouring cells? Not through the kitchen wall, except
+-- at the doorways.
+function FoodCourtRules.canSpread(c1: number, r1: number, c2: number, r2: number): boolean
+	local r = FoodCourtRules.L09
+	local crossesWall = math.min(c1, c2) == r.WallCol and math.max(c1, c2) == r.WallCol + 1
+	if crossesWall then
+		return r1 == r2 and table.find(r.DoorRows, r1) ~= nil
+	end
+	return true
+end
+
+local function canLight(grid: FireGrid, key: number?, now: number): boolean
+	if not key or grid.Burning[key] or grid.Smolder[key] or grid.Protected[key] then
+		return false
+	end
+	return grid.Count < FoodCourtRules.L09.MaxBurning and (grid.Wet[key] or 0) <= now
+end
+
+-- Sets a cell burning at once (the night's first fires); false if it can't burn.
 function FoodCourtRules.ignite(grid: FireGrid, c: number, r: number, now: number): boolean
 	local key = FoodCourtRules.cellKey(grid, c, r)
-	if not key or grid.Burning[key] or grid.Protected[key] or grid.Count >= FoodCourtRules.L09.MaxBurning then
+	if not canLight(grid, key, now) then
 		return false
 	end
-	if (grid.Wet[key] or 0) > now then
+	grid.Burning[key :: number] = true
+	grid.Count += 1
+	return true
+end
+
+-- Starts a cell smouldering: it bursts into flame SmolderSeconds later (advance).
+function FoodCourtRules.smolder(grid: FireGrid, c: number, r: number, now: number): boolean
+	local key = FoodCourtRules.cellKey(grid, c, r)
+	if not canLight(grid, key, now) then
 		return false
 	end
-	grid.Burning[key] = true
+	grid.Smolder[key :: number] = now + FoodCourtRules.L09.SmolderSeconds
 	grid.Count += 1
 	return true
 end
 
 local NEIGHBOURS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
 
--- One spread step: every burning cell may light one neighbour. random() → [0, 1).
--- Returns the newly burning keys.
+-- One spread step: every burning cell may set one neighbour smouldering (never through
+-- a wall). random() → [0, 1). Returns the newly smouldering keys.
 function FoodCourtRules.spread(grid: FireGrid, now: number, chance: number, random: () -> number): { number }
 	local current = {}
 	for key in grid.Burning do
@@ -172,23 +206,41 @@ function FoodCourtRules.spread(grid: FireGrid, now: number, chance: number, rand
 		if random() < chance then
 			local c, r = FoodCourtRules.cellOf(grid, key)
 			local d = NEIGHBOURS[math.floor(random() * 4) + 1]
-			if FoodCourtRules.ignite(grid, c + d[1], r + d[2], now) then
-				table.insert(lit, FoodCourtRules.cellKey(grid, c + d[1], r + d[2]) :: number)
+			local c2, r2 = c + d[1], r + d[2]
+			if FoodCourtRules.canSpread(c, r, c2, r2) and FoodCourtRules.smolder(grid, c2, r2, now) then
+				table.insert(lit, FoodCourtRules.cellKey(grid, c2, r2) :: number)
 			end
 		end
 	end
 	return lit
 end
 
--- A spray puts out the cell and its four neighbours and keeps them wet for WetSeconds.
--- Returns the keys that were burning.
+-- Smouldering cells whose time has come burst into flame. Returns those keys.
+function FoodCourtRules.advance(grid: FireGrid, now: number): { number }
+	local flared = {}
+	for key, at in grid.Smolder do
+		if now >= at then
+			table.insert(flared, key)
+		end
+	end
+	table.sort(flared)
+	for _, key in flared do
+		grid.Smolder[key] = nil
+		grid.Burning[key] = true
+	end
+	return flared
+end
+
+-- A spray puts out the cell and its four neighbours (burning or smouldering) and keeps
+-- them wet for WetSeconds. Returns the keys that were alight.
 function FoodCourtRules.extinguish(grid: FireGrid, c: number, r: number, now: number): { number }
 	local out = {}
 	for _, d in { { 0, 0 }, table.unpack(NEIGHBOURS) } do
 		local key = FoodCourtRules.cellKey(grid, c + d[1], r + d[2])
 		if key then
-			if grid.Burning[key] then
+			if grid.Burning[key] or grid.Smolder[key] then
 				grid.Burning[key] = nil
+				grid.Smolder[key] = nil
 				grid.Count -= 1
 				table.insert(out, key)
 			end
@@ -214,17 +266,63 @@ function FoodCourtRules.cablePhase(t: number, offset: number): ("Live" | "Safe",
 	return "Safe", cycle - at
 end
 
--- Pulling one of the two switchboard levers ("A" / "B"). Returns true when this pull
--- completes the reset (the other lever was pulled within Window seconds).
-function FoodCourtRules.pullLever(pulled: { [string]: number }, lever: string, now: number): boolean
-	local other = if lever == "A" then "B" else "A"
-	local at = pulled[other]
-	if at and now - at <= FoodCourtRules.L09.Window then
-		table.clear(pulled)
+-- The switchboard. Pull one breaker (it's "held"), then the other within the window.
+export type Breakers = { Held: string?, Since: number }
+export type PullResult = "Armed" | "Restarted" | "Done"
+
+function FoodCourtRules.leverWindow(playerCount: number): number
+	local r = FoodCourtRules.L09
+	return if players(playerCount) <= 1 then r.SoloWindow else r.Window
+end
+
+-- "Armed": this breaker is now held and the timer started. "Restarted": it was already
+-- held, its timer starts over (a retry). "Done": the other one was held in time.
+function FoodCourtRules.pullBreaker(state: Breakers, lever: string, now: number, window: number): PullResult
+	if state.Held == nil or now - state.Since > window then
+		state.Held = lever
+		state.Since = now
+		return "Armed" :: PullResult
+	elseif state.Held == lever then
+		state.Since = now
+		return "Restarted" :: PullResult
+	end
+	state.Held = nil
+	return "Done" :: PullResult
+end
+
+-- Seconds left on the held breaker (0 when none is held or it ran out).
+function FoodCourtRules.breakerLeft(state: Breakers, now: number, window: number): number
+	if state.Held == nil then
+		return 0
+	end
+	return math.max(0, window - (now - state.Since))
+end
+
+-- Lets go of a held breaker whose time ran out; true if it just did.
+function FoodCourtRules.breakerExpired(state: Breakers, now: number, window: number): boolean
+	if state.Held ~= nil and now - state.Since > window then
+		state.Held = nil
 		return true
 	end
-	pulled[lever] = now
 	return false
+end
+
+-- Is a player (offset from the dock exit's landing centre) out on the landing?
+function FoodCourtRules.onDockLanding(dx: number, dy: number, dz: number): boolean
+	return math.abs(dx) <= 9 and dz >= -8 and dz <= 7 and math.abs(dy) < 8
+end
+
+-- Everyone in the server is out (nobody left to wait for).
+function FoodCourtRules.allEscaped(present: { any }, escaped: { [any]: boolean }): boolean
+	if #present == 0 then
+		return false
+	end
+	for _, who in present do
+		if not escaped[who] then
+			return false
+		end
+	end
+	return true
 end
 
 -- ── Level 10 · Special Delivery / Return to Sender ──────────────────────────

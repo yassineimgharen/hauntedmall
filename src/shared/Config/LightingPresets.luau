@@ -202,31 +202,33 @@ local LightingPresets: { [string]: Preset } = {
 		SunRays = { Intensity = 0, Spread = 0.55 },
 	},
 
-	-- Inferno (Level 9 night): smoke and firelight. Thick, warm, low visibility.
+	-- Inferno (Level 9 night): emergency-lit smoke; the flames carry the colour.
 	Inferno = {
+		-- dim, cool, smoky grey so the orange flames are the brightest thing on screen
+		-- (an all-orange world made the fire hard to tell apart)
 		Lighting = {
 			ClockTime = 0.2,
 			Brightness = 0.6,
-			Ambient = rgb(96, 40, 22),
-			OutdoorAmbient = rgb(80, 40, 30),
-			ColorShift_Top = rgb(255, 120, 40),
-			ColorShift_Bottom = rgb(60, 10, 0),
+			Ambient = rgb(52, 50, 60),
+			OutdoorAmbient = rgb(40, 40, 50),
+			ColorShift_Top = rgb(255, 140, 70),
+			ColorShift_Bottom = rgb(10, 10, 22),
 			EnvironmentDiffuseScale = 0.4,
 			EnvironmentSpecularScale = 1,
-			ExposureCompensation = 0.2,
+			ExposureCompensation = 0.1,
 		},
 		Atmosphere = {
-			Density = 0.5,
+			Density = 0.32,
 			Offset = 0.05,
-			Color = rgb(120, 60, 40),
-			Decay = rgb(50, 20, 10),
+			Color = rgb(78, 72, 74),
+			Decay = rgb(34, 30, 34),
 			Glare = 0,
-			Haze = 2.6,
+			Haze = 1.4,
 		},
 		ColorCorrection = {
-			TintColor = rgb(255, 214, 180),
-			Saturation = 0.1,
-			Contrast = 0.22,
+			TintColor = rgb(236, 232, 236),
+			Saturation = 0.15,
+			Contrast = 0.26,
 			Brightness = 0,
 		},
 		Bloom = { Intensity = 1.1, Size = 26, Threshold = 1 },

@@ -945,7 +945,7 @@ local levels: { any } = {
 					Text = "Reset the main switchboard",
 					Event = "SwitchboardReset",
 					Scope = "Team",
-					Hint = "Maintenance corridor: pull BOTH main breakers within 8 seconds. Split up, or sprint!",
+					Hint = "Maintenance corridor: pull one breaker, then the other before the on-screen timer ends (10 s solo, 8 s in a team).",
 					Marker = { Tag = "SwitchLever", Label = "⚡ PULL BREAKER" },
 				},
 				{

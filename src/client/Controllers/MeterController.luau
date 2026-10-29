@@ -3,8 +3,11 @@
 --   Meter_Signal 📡 anomaly scanner (Level 12)
 -- A missing attribute hides its bar. Cold and gas also tint the screen edges as they
 -- rise. Purely visual: every effect of a meter is decided on the server.
+-- Also a level countdown (top centre) from ReplicatedStorage attributes Countdown_Text,
+-- Countdown_Ends (server time) and Countdown_Total (seconds), e.g. Level 9's breakers.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Components = require(script.Parent.Parent.UI.Components)
 local Create = require(script.Parent.Parent.UI.Create)
@@ -122,6 +125,45 @@ function MeterController.Start()
 		player:GetAttributeChangedSignal("Meter_" .. meter.Name):Connect(render)
 	end
 	render()
+
+	-- the countdown: big text and a draining bar, gold turning red in the last 3 s
+	local timer = Components.panel({
+		Size = UDim2.fromOffset(420, 64),
+		Position = UDim2.new(0.5, 0, 0, 96),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Visible = false,
+		Parent = gui,
+	})
+	local timerText = Create.text({
+		Size = UDim2.new(1, -20, 0, 30),
+		Position = UDim2.fromOffset(10, 6),
+		Text = "",
+		FontFace = Theme.Fonts.Heading,
+		TextColor3 = C.Gold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextStrokeTransparency = 0.3,
+		Parent = timer,
+	})
+	local _, setTimer = Components.bar({
+		Size = UDim2.new(1, -20, 0, 14),
+		Position = UDim2.fromOffset(10, 42),
+		Parent = timer,
+	}, C.Gold)
+	task.spawn(function()
+		while true do
+			task.wait(0.05)
+			local text = ReplicatedStorage:GetAttribute("Countdown_Text")
+			local ends = ReplicatedStorage:GetAttribute("Countdown_Ends")
+			local total = ReplicatedStorage:GetAttribute("Countdown_Total")
+			local left = if type(ends) == "number" then ends - workspace:GetServerTimeNow() else -1
+			timer.Visible = type(text) == "string" and left > 0
+			if timer.Visible then
+				timerText.Text = string.format("%s · %.1fs", text, left)
+				timerText.TextColor3 = if left < 3 then C.Red else C.Gold
+				setTimer(if type(total) == "number" and total > 0 then left / total else 0, true)
+			end
+		end
+	end)
 end
 
 return MeterController

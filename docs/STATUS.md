@@ -2,7 +2,44 @@
 
 _Last updated: 2026-10-28._
 
-## Current: Chapter 2, the Haunted Food Court (Levels 8–14)
+## Current: Level 9 fixes (switchboard, fire visuals, completion)
+Static checks ✅ · unit tests 125/125 ✅ (68 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §L9).
+
+**Your report: the day ended with "Reset the main switchboard" unchecked.** The completion logic itself worked: pulling both breakers within the window recorded the objective (now covered by tests). What made it near-impossible to finish:
+1. **The guide arrow never pointed at the second breaker.** After you pulled one, it wasn't marked done, so the arrow kept targeting the breaker you were standing at, and the arrow hides within 7 studs. Nothing pointed down the corridor.
+2. **No visible timer.** The 8-second window only appeared in a toast. Breaker A snapped back silently until a "too slow" toast, so walking back and forth never succeeded.
+3. **Solo was tight:** 74 studs is 4.6 s of sprinting, plus the hold and turning round, inside 8 s.
+4. **Day progress blocks the level (by design).** With the switchboard missed, the day isn't cleared, so completing the night gave "DAY NOT CLEARED" at dawn, Level 10 stayed locked and Level 9 stays your next level. Nothing said so during the night.
+
+**Fire was hard to see:** the Inferno lighting was orange ambient light plus an orange tint plus thick orange fog, around orange fire tiles. Also a **real bug**: the grid's column 9 straddled the kitchen wall, so fire spread straight through it.
+
+**Fixed:**
+- **Breakers:**
+  - Solo window 10 s (8 s in a team).
+  - An on-screen countdown bar for everyone, and big labels on both breakers that count down.
+  - A pulled breaker hands the guide arrow to the other one.
+  - Banners for armed, success, "too slow" (with a retry hint) and timer restarted.
+  - Pulling a held breaker restarts its timer.
+- **Fire:**
+  - Grey smoky lighting so the flames stand out.
+  - Cells smoulder (dark red with smoke, harmless) for 2.5 s before bursting into flame.
+  - Fire crosses the kitchen wall only at its doorways.
+  - Fewer but bigger and brighter flames, black smoke on a third of the cells, light on a quarter (cheaper than before per cell).
+  - Burnt floor stays charred.
+  - Sprays show foam and steam, and foam marks the floor while it can't reignite.
+  - Popups for fires out, sprays left, and "you're burning".
+- **Night and completion:**
+  - Gas-main labels are visible through walls and hide when shut; the toast lists the mains still open.
+  - A green light column marks the exit once it opens.
+  - Escaping gives a personal message: "completes at dawn", or a warning that the day isn't cleared.
+  - Dawn comes 10 s after everyone is out.
+  - The HUD's night hint says when the level can't complete (day not cleared) or is done and waiting for dawn. This hint applies to every level.
+
+**Files:** `Levels/KitchenFire.luau`, `Levels/FoodCourtRules.luau` (switchboard state machine, smoulder stage, wall-aware spread, landing and all-escaped checks), `Shared/Config/LightingPresets.luau` (Inferno), `Shared/Campaign/CampaignConfig.luau` (L09 hint), client `MeterController.luau` (countdown), `UI/Screens/Hud.luau` (night hints), `tests/Chapter2.spec.luau`, `docs/TESTING.md` §L9.
+
+---
+
+## Previous: Chapter 2, the Haunted Food Court (Levels 8–14)
 Static checks ✅ · unit tests 117/117 ✅ (60 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §C4).
 
 **Added:** the food court wing (`World/FoodCourt`, `World/FoodCourtDetail`, `Layout.FoodCourt`); levels `GrandReopening`, `KitchenFire`, `Deliveries`, `HiddenFreezer`, `ShiftingMaze`, `Ventilation`, `GorgingChef`; pure rules `FoodCourtRules`, `ChefLogic`; monsters `PossessedCart`, `ParcelMimic` (and Mite), `FrostWraith`, `SporeBloater`, `Meatball` on a shared `Enemies/Rig`; `Util/Telegraph` (floor warnings); `Shared/Config/MonsterTuning`; `Shared/Campaign/AchievementConfig`; client `MonsterAnimations`, `MeterController` (cold/gas/signal meters), `CinematicController`, `FoodCourtFxController`; 7 lighting presets; `tests/Chapter2.spec.luau`.

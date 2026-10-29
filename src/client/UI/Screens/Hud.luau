@@ -551,6 +551,19 @@ function Hud:_missionGoals(): (boolean, { { Text: string, State: string } }, str
 		hint = if snapshot.Stage == "Day" then "Day over. Night is coming…" else "Night over. Results incoming…"
 	elseif snapshot.Stage == "Day" and snapshot.DayCleared then
 		hint = if hint ~= "" then hint else "Day already cleared on an earlier try. Tonight is what counts."
+	elseif snapshot.Stage == "Night" then
+		-- say plainly what tonight can and can't do for the level
+		local requiredLeft = false
+		for _, row in snapshot.Rows do
+			if not row.Optional and not row.Done and row.Kind == "Count" then
+				requiredLeft = true
+			end
+		end
+		if not snapshot.DayCleared then
+			hint = "⚠️ This level's DAY isn't cleared, so tonight can't complete it. " .. hint
+		elseif not requiredLeft then
+			hint = "✅ Night objectives done: the level completes at dawn. Stay safe!"
+		end
 	end
 	return true, rows, hint
 end
