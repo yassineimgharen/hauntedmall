@@ -161,6 +161,23 @@ function CampaignLogic.requiredComplete(tracker: Tracker, key: any, final: boole
 	return true
 end
 
+-- The required objectives this player hasn't met, as text with progress (for explanations).
+function CampaignLogic.unfinished(tracker: Tracker, key: any, final: boolean?): { string }
+	local list = {}
+	for _, objective in tracker.Objectives do
+		if not objective.Optional and not CampaignLogic.isDone(tracker, key, objective, final) then
+			local goal = target(objective)
+			table.insert(
+				list,
+				if kind(objective) == "Count" and goal > 1
+					then string.format("%s (%d/%d)", objective.Text, CampaignLogic.value(tracker, key, objective), goal)
+					else objective.Text
+			)
+		end
+	end
+	return list
+end
+
 -- Optional objectives this player finished (evaluated at stage end).
 function CampaignLogic.optionalDone(tracker: Tracker, key: any): { string }
 	local done = {}

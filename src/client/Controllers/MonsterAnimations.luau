@@ -45,7 +45,9 @@ MonsterAnimations.PossessedCart = function(visual: any, dt: number, now: number)
 	end
 end
 
--- Disguised: just a box (legs and eyes hidden). Revealed: flaps open and flap like jaws.
+-- Disguised: a still box (legs and eyes hidden) with the faintest breathing as its only
+-- tell. Revealing: scraps burst off, the flaps fly open, it rises onto its legs, shaking.
+-- Revealed: the flaps chew like jaws, gaping wide while it winds up an attack.
 MonsterAnimations.ParcelMimic = function(visual: any, _dt: number, now: number)
 	local model: Model = visual.Model
 	local c = visual.Custom
@@ -61,17 +63,31 @@ MonsterAnimations.ParcelMimic = function(visual: any, _dt: number, now: number)
 				end
 			end
 		end
+		local scraps = model:FindFirstChild("Scraps", true)
+		if revealed and scraps and scraps:IsA("ParticleEmitter") then
+			scraps:Emit(16)
+		end
 	end
-	local angle = if revealed then 1.2 + math.sin(now * 9) * 0.35 else 0
+	local since = serverNow() - ((model:GetAttribute("RevealedAt") or 0) :: number)
+	local open = if revealed then math.clamp(since / 0.35, 0, 1) else 0
+	local windup = serverNow() - ((model:GetAttribute("WindupAt") or 0) :: number)
+		< (model:GetAttribute("Windup") or 0.6) :: number
+	local angle = if not revealed then 0 elseif windup then 2 else 1.2 + math.sin(now * 9) * 0.35
 	for name, sign in { FlapL = 1, FlapR = -1 } do
 		local flap = visual.Joints[name]
 		if flap then
-			flap.Transform = CFrame.Angles(0, 0, sign * angle)
+			flap.Transform = CFrame.Angles(0, 0, sign * angle * open)
 		end
 	end
-	if not revealed then
-		-- a barely-there breathing pulse gives it away to sharp eyes
-		addToBody(visual, CFrame.new(0, math.max(0, math.sin(now * 1.3)) * 0.04, 0))
+	local body: Motor6D? = visual.Body
+	if body then
+		if not revealed then
+			body.Transform = CFrame.new(0, math.max(0, math.sin(now * 1.3)) * 0.03, 0)
+		else
+			local rise = CFrame.new(0, 0.9 * open, 0) -- stands up on its legs
+			local shake = if since < 0.8 then CFrame.new((math.random() - 0.5) * 0.3, 0, 0) else CFrame.new()
+			body.Transform *= rise * shake
+		end
 	end
 end
 

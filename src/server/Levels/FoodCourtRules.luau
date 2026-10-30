@@ -344,14 +344,45 @@ FoodCourtRules.L10 = {
 		{ Sender = "Dough Bros.", For = "Slice of Night", Contents = "Mozzarella", Infected = true },
 		{ Sender = "Sunrise Produce", For = "Lucky Wok", Contents = "Bok choy", Infected = false },
 	},
-	SortTarget = 8, -- of 10: two mistakes still clear the day
+	SortTarget = 8, -- of 10
 	InspectSeconds = 1.2,
 	UVSeconds = 0.4, -- of beam to reveal a parcel's UV status
 	LogbookAfter = 5, -- sorted parcels before the truck's cab opens
-	Nests = 4,
+	Tier = 3,
+	-- where things go, as { x, y, z } floor points (tests check they're in open floor)
+	ParcelSpots = {
+		{ -122, 0.6, -102 },
+		{ -115, 0.6, -102 },
+		{ -122, 0.6, -110 },
+		{ -115, 0.6, -110 },
+		{ -102, 3.1, -118 },
+		{ -102, 3.1, -104 },
+		{ -170, 0, -85 },
+		{ -130, 0, -85 },
+		{ -152, 0, -96 },
+		{ -128, 0, -122 },
+	},
+	-- nests: where each one sits, and the clear floor beside it where it hatches a mimic
+	Nests = {
+		{ At = { -118, 0, -116 }, Hatch = { -111, 0, -116 } },
+		{ At = { -172, 0, -85 }, Hatch = { -165, 0, -85 } },
+		{ At = { -108, 0, -70 }, Hatch = { -106, 0, -62 } },
+		{ At = { -141, 0, 68 }, Hatch = { -149, 0, 68 } },
+	},
 	NestSeconds = 6, -- of beam to burn a nest (shared)
 	NestEvery = 25, -- each nest hatches a mimic this often
-	Tier = 3,
+	ClearedDawn = 10, -- nests burned and every creature dead: dawn this many seconds later
+	-- real parcels with a disguised mimic's hiding place beside each
+	Hides = {
+		{ Box = { -120, 0, -36 }, Mimic = { -116, 0, -36 } },
+		{ Box = { -162, 0, 18 }, Mimic = { -162, 0, 14 } },
+		{ Box = { -136, 0, -40 }, Mimic = { -140, 0, -40 } },
+		{ Box = { -178, 0, -2 }, Mimic = { -178, 0, 2 } },
+		{ Box = { -118, 0, 36 }, Mimic = { -122, 0, 36 } },
+		{ Box = { -150, 0, -85 }, Mimic = { -146, 0, -85 } },
+		{ Box = { -198, 0, -60 }, Mimic = { -198, 0, -56 } },
+		{ Box = { -130, 0, -98 }, Mimic = { -134, 0, -98 } },
+	},
 }
 
 function FoodCourtRules.isTrusted(sender: string): boolean
@@ -363,7 +394,62 @@ function FoodCourtRules.isCorrectCall(parcel: { Infected: boolean }, quarantine:
 	return parcel.Infected == quarantine
 end
 
--- Parcel creatures alive at once: 2 solo, +1 per extra player, at most 5.
+export type ParcelState = { Inspected: boolean, UV: boolean, Settled: boolean, Wrong: boolean }
+export type ParcelCall = "Refused" | "Correct" | "Wrong"
+
+function FoodCourtRules.newParcel(): ParcelState
+	return { Inspected = false, UV = false, Settled = false, Wrong = false }
+end
+
+-- A delivery decision. Correct settles the parcel. A wrong call costs you (WrongCall, an
+-- extra hatchling for an infected parcel) but the parcel comes back with its UV status
+-- showing, so the day's goal can always still be reached. The second value is true the
+-- first time this parcel is called wrongly.
+function FoodCourtRules.callParcel(
+	parcel: { Infected: boolean },
+	state: ParcelState,
+	quarantine: boolean
+): (ParcelCall, boolean)
+	if not state.Inspected or state.Settled then
+		return "Refused" :: ParcelCall, false
+	end
+	if FoodCourtRules.isCorrectCall(parcel, quarantine) then
+		state.Settled = true
+		return "Correct" :: ParcelCall, false
+	end
+	local first = not state.Wrong
+	state.Wrong = true
+	state.UV = true
+	return "Wrong" :: ParcelCall, first
+end
+
+-- What the parcel's label says right now.
+function FoodCourtRules.parcelLabel(
+	parcel: { Sender: string, For: string, Contents: string, Infected: boolean },
+	state: ParcelState
+): string
+	local sender = if FoodCourtRules.isTrusted(parcel.Sender) then "✓ on manifest" else "⚠ NOT ON MANIFEST"
+	local uv = if not state.UV
+		then "🔦 Shine your flashlight: UV check"
+		elseif parcel.Infected then "☣ UV HANDPRINT: quarantine (Q)"
+		else "✓ UV clean: deliver (E)"
+	return string.format(
+		"FROM: %s %s\nTO: %s\nCONTENTS: %s\n%s",
+		parcel.Sender,
+		sender,
+		parcel.For,
+		parcel.Contents,
+		uv
+	)
+end
+
+-- Nests burned and nothing left alive: the night's threat is over.
+function FoodCourtRules.infestationCleared(nestsLeft: number, creatures: number): boolean
+	return nestsLeft <= 0 and creatures <= 0
+end
+
+-- Awake parcel creatures at once (hatching stops at this; sleeping disguises don't count):
+-- 2 solo, +1 per extra player, at most 5.
 function FoodCourtRules.mimicCap(playerCount: number): number
 	return math.min(1 + players(playerCount), 5)
 end

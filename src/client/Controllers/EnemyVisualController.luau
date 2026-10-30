@@ -99,6 +99,12 @@ local function makeFlash(model: Model): Highlight
 	return highlight
 end
 
+-- Per-type death puffs (default: a big purple one).
+local DEATH_BURSTS: { [string]: { Color: Color3, Count: number } } = {
+	ParcelMimic = { Color = Color3.fromRGB(196, 154, 104), Count = 24 },
+	ParcelMite = { Color = Color3.fromRGB(120, 60, 200), Count = 10 },
+}
+
 local function burst(root: BasePart, color: Color3, count: number)
 	local attachment = Instance.new("Attachment")
 	attachment.Parent = root
@@ -126,7 +132,8 @@ local function dissolve(visual: Visual)
 	visual.Dying = true
 	visual.BarGui.Enabled = false
 	visual.Flash.Enabled = false
-	burst(visual.Root, Color3.fromRGB(120, 60, 200), 30)
+	local death = DEATH_BURSTS[(visual.Model:GetAttribute("EnemyType") or "") :: string]
+	burst(visual.Root, if death then death.Color else Color3.fromRGB(120, 60, 200), if death then death.Count else 30)
 	for _, part in visual.Model:GetDescendants() do
 		if part:IsA("BasePart") and part ~= visual.Root then
 			TweenService:Create(part, TweenInfo.new(0.9), { Transparency = 1 }):Play()
@@ -188,7 +195,9 @@ local function register(model: Instance)
 		Custom = {},
 	}
 	visuals[model] = visual
-	burst(root, Color3.fromRGB(60, 10, 100), 25)
+	if not model:GetAttribute("Disguised") then
+		burst(root, Color3.fromRGB(60, 10, 100), 25) -- a disguised parcel just sits there
+	end
 
 	local function onHealth()
 		local hp = model:GetAttribute("HP") or 0
@@ -210,6 +219,14 @@ end
 
 local function animate(visual: Visual, dt: number, now: number)
 	local model = visual.Model
+	if model:GetAttribute("Disguised") then
+		-- a parcel on the floor: no walk cycle, bob or spawn animation to compute
+		local still = MonsterAnimations[model:GetAttribute("EnemyType") or ""]
+		if still then
+			still(visual, dt, now)
+		end
+		return
+	end
 	local velocity = visual.Root.AssemblyLinearVelocity
 	local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
 	local moving = math.clamp(speed / 10, 0, 1)

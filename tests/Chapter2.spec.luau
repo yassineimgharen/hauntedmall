@@ -442,6 +442,7 @@ local R10 = Rules.L10
 test("L10 day: 8 correct calls and the logbook clear it; the perfect bonus needs real work", function()
 	assert(play(L10.Day, { { "ParcelSorted", 8 }, { "DriverLogFound", 1 } }), "cleared")
 	assert(not play(L10.Day, { { "ParcelSorted", 7 }, { "DriverLogFound", 1 } }), "7 calls")
+	assert(not play(L10.Day, { { "ParcelSorted", 10 } }), "no logbook")
 	local idle = Logic.newTracker(L10.Day.Objectives)
 	assert(not table.find(Logic.optionalDone(idle, "A"), "nowrong"), "doing nothing doesn't earn 'no wrong calls'")
 	local tracker = Logic.newTracker(L10.Day.Objectives)
@@ -451,7 +452,7 @@ test("L10 day: 8 correct calls and the logbook clear it; the perfect bonus needs
 	assert(source:find("sorted == #R.Parcels and wrongCalls == 0", 1, true), "only all 10 with no mistakes")
 end)
 
-test("L10 parcels: 4 infected, 2 of them only visible by UV; 8 correct calls possible", function()
+test("L10 parcels: 4 infected, 2 of them only visible by UV", function()
 	local infected, hidden = 0, 0
 	for _, parcel in R10.Parcels do
 		if parcel.Infected then
@@ -468,13 +469,150 @@ test("L10 parcels: 4 infected, 2 of them only visible by UV; 8 correct calls pos
 	eq(#R10.Parcels, 10, "parcels")
 	eq(infected, 4, "infected")
 	assert(hidden >= 2, "some infected parcels need the flashlight")
-	assert(#R10.Parcels - R10.SortTarget >= 2, "room for two mistakes")
 	assert(R10.LogbookAfter <= R10.SortTarget, "the logbook opens before the day's goal")
+	eq(#R10.ParcelSpots, #R10.Parcels, "a spot for each parcel")
+	eq(R10.SortTarget, L10.Day.Objectives[1].Target, "rules and objective agree")
 end)
 
-test("L10 night: 4 nests and surviving clear it", function()
+test("L10 inspection: must inspect first; a parcel settles only on the right call", function()
+	local clean = { Infected = false }
+	local state = Rules.newParcel()
+	eq((Rules.callParcel(clean, state, false)), "Refused", "not inspected yet")
+	state.Inspected = true
+	eq((Rules.callParcel(clean, state, false)), "Correct", "deliver a clean parcel")
+	assert(state.Settled, "settled")
+	eq((Rules.callParcel(clean, state, false)), "Refused", "can't score the same parcel twice")
+end)
+
+test("L10 wrong calls: cost something once, reveal the UV, and the parcel comes back", function()
+	local bad = { Infected = true }
+	local state = Rules.newParcel()
+	state.Inspected = true
+	local result, first = Rules.callParcel(bad, state, false)
+	eq(result, "Wrong", "delivering an infected parcel")
+	assert(first, "first mistake on it: a hatchling tonight")
+	assert(state.UV and not state.Settled, "UV shown; still on the dock")
+	local _, again = Rules.callParcel(bad, state, false)
+	assert(not again, "the same parcel can't add a second hatchling")
+	eq((Rules.callParcel(bad, state, true)), "Correct", "then quarantine it")
+end)
+
+test("L10 regression: no sequence of wrong calls makes the day impossible", function()
+	-- the old rule (one call per parcel, only right ones count) dead-ended at 3 mistakes
+	for _, mistakes in { 0, 3, 6, 10, 40 } do
+		local states = {}
+		local right = 0
+		for i, parcel in R10.Parcels do
+			states[i] = Rules.newParcel()
+			states[i].Inspected = true
+		end
+		for m = 1, mistakes do
+			local i = (m - 1) % #R10.Parcels + 1
+			eq((Rules.callParcel(R10.Parcels[i], states[i], not R10.Parcels[i].Infected)), "Wrong", "mistake")
+		end
+		for i, parcel in R10.Parcels do
+			if Rules.callParcel(parcel, states[i], parcel.Infected) == "Correct" then
+				right += 1
+			end
+		end
+		assert(right >= R10.SortTarget and right >= R10.LogbookAfter, mistakes .. " mistakes: still finishable")
+	end
+end)
+
+test("L10 UV clue: the label tells the state and what to do", function()
+	local state = Rules.newParcel()
+	local suspicious = R10.Parcels[3]
+	local hiddenInfected = R10.Parcels[5]
+	local clean = R10.Parcels[1]
+	assert(Rules.parcelLabel(clean, state):find("Shine your flashlight", 1, true), "asks for the UV check")
+	assert(not Rules.parcelLabel(hiddenInfected, state):find("HANDPRINT", 1, true), "no spoiler before UV")
+	assert(Rules.parcelLabel(hiddenInfected, state):find("on manifest", 1, true), "this one's sender looks fine")
+	assert(Rules.parcelLabel(suspicious, state):find("NOT ON MANIFEST", 1, true), "unknown sender flagged")
+	state.UV = true
+	assert(Rules.parcelLabel(hiddenInfected, state):find("UV HANDPRINT: quarantine", 1, true), "infected")
+	assert(Rules.parcelLabel(clean, state):find("UV clean: deliver", 1, true), "clean")
+	assert(R10.UVSeconds <= 1, "a quick sweep is enough")
+end)
+
+test("L10 day fits the clock solo, with walking and a few mistakes", function()
+	local perParcel = R10.InspectSeconds + R10.UVSeconds + 0.6 + 4 -- +4 s walking and reacting
+	local total = perParcel * R10.SortTarget + 30 + 15 -- getting to the dock, and the logbook
+	assert(total < L10.Day.Duration * 0.5, string.format("about %ds of %ds", total, L10.Day.Duration))
+end)
+
+-- Open floor (inner wall faces) from Layout.FoodCourt, minus what the world builder puts there.
+local ROOMS = {
+	{ -183, -99, -47, 47 }, -- dining hall
+	{ -183, -99, -91, -79 }, -- service corridor
+	{ -159, -99, -127, -93 }, -- loading dock
+	{ -183, -99, 49, 77 }, -- north restaurants
+	{ -183, -99, -77, -49 }, -- south restaurants
+	{ -249, -185, -95, -49 }, -- storage
+}
+local TABLES = { -112, -128, -154, -170 }
+local function openFloor(p: { number }, half: number): boolean
+	local inRoom = false
+	for _, room in ROOMS do
+		if p[1] - half >= room[1] and p[1] + half <= room[2] and p[3] - half >= room[3] and p[3] + half <= room[4] then
+			inRoom = true
+		end
+	end
+	if not inRoom then
+		return false
+	end
+	for _, x in TABLES do
+		for _, z in { -24, -10, 10, 24 } do
+			local skipped = math.abs(z) < 12 and (x == -128 or x == -154) -- the logo stays clear
+			if not skipped and math.sqrt((p[1] - x) ^ 2 + (p[3] - z) ^ 2) < 6 + half then
+				return false
+			end
+		end
+	end
+	local inBox = function(minX, maxX, minZ, maxZ)
+		return p[1] + half > minX and p[1] - half < maxX and p[3] + half > minZ and p[3] - half < maxZ
+	end
+	-- the truck, its pallets, the conveyor, the storage shelves
+	return not (
+		inBox(-147, -137, -124, -99)
+		or inBox(-125, -112, -113, -99)
+		or inBox(-104, -100, -125, -95)
+		or inBox(-206, -202, -79, -65)
+		or inBox(-194, -190, -79, -65)
+	)
+end
+
+test("L10 world: nests, hatch spots and hiding places are all in open, reachable floor", function()
+	eq(#R10.Nests, 4, "four nests")
+	eq(L10.Night.Objectives[1].Target, #R10.Nests, "the objective wants every nest, and there are that many")
+	for i, nest in R10.Nests do
+		assert(openFloor(nest.At, 2.5), "nest " .. i .. " sits in open floor")
+		assert(openFloor(nest.Hatch, 1.6), "nest " .. i .. " hatch spot")
+		local gap = math.sqrt((nest.At[1] - nest.Hatch[1]) ^ 2 + (nest.At[3] - nest.Hatch[3]) ^ 2)
+		assert(gap >= 5, "nest " .. i .. " hatches clear of its own crates")
+	end
+	for i, hide in R10.Hides do
+		assert(openFloor(hide.Box, 1.7), "hide " .. i .. " parcel")
+		assert(openFloor(hide.Mimic, 1.7), "hide " .. i .. " mimic (not inside a wall or a table)")
+		local gap = math.sqrt((hide.Box[1] - hide.Mimic[1]) ^ 2 + (hide.Box[3] - hide.Mimic[3]) ^ 2)
+		assert(gap >= 3.3, "hide " .. i .. " mimic doesn't overlap its parcel")
+	end
+	assert(Rules.initialMimics(8, 9) <= #R10.Hides, "always enough hiding places")
+end)
+
+test("L10 night: 4 nests and surviving clear it; killing creatures can't replace nests", function()
 	assert(play(L10.Night, { { "NestBurned", 4 } }), "cleared")
 	assert(not play(L10.Night, { { "NestBurned", 3 }, { "ParcelCreatureKilled", 20 } }), "kills don't replace nests")
+	assert(R10.NestSeconds <= EnemyConfig.Flashlight.BatterySeconds, "a nest burns in one battery")
+	local source = fs.readFile("src/server/Levels/Deliveries.luau")
+	assert(source:find("spawnMimic(nest.Hatch, false)", 1, true), "nests hatch awake mimics")
+	assert(source:find("creatures(true) < cap", 1, true), "sleeping disguises don't stop nests hatching")
+end)
+
+test("L10 ending: dawn comes early only when nests and creatures are all gone", function()
+	assert(not Rules.infestationCleared(1, 0), "a nest left")
+	assert(not Rules.infestationCleared(0, 1), "a creature left")
+	assert(Rules.infestationCleared(0, 0), "all clear")
+	assert(R10.ClearedDawn <= 15, "a short wait")
 end)
 
 test("L10 balance: creature caps grow gently; day mistakes add mimics", function()
@@ -484,17 +622,95 @@ test("L10 balance: creature caps grow gently; day mistakes add mimics", function
 	eq(Rules.initialMimics(1, 0), 2, "solo start")
 	eq(Rules.initialMimics(1, 2), 4, "two infected parcels delivered")
 	eq(Rules.initialMimics(8, 9), 6, "hard cap")
-	assert(R10.NestSeconds <= EnemyConfig.Flashlight.BatterySeconds, "a nest burns in one battery")
 end)
 
-test("L10 mimics: disguise, a visible pounce warning, a split into mites", function()
+test("L10 mimic fairness: wake-up, a warning scaled to the leap, slower than you, few hits to kill", function()
 	local m = MonsterTuning.Mimic
 	assert(m.RevealRange >= 8, "you see it wake up before it can reach you")
-	assert(m.RevealPause + m.PounceWarn >= 1.5, "time to react after it bursts open")
-	assert((m.PounceRadius + 1) / MonsterTuning.PlayerSpeed < m.PounceWarn, "the landing circle can be left in time")
+	for _, distance in { m.PounceMin, 12, m.PounceMax } do
+		local leapAfter, landAfter = MonsterTuning.pounceTimes(distance)
+		assert(leapAfter >= 0.5, "it crouches first")
+		assert((m.PounceRadius + 1) / MonsterTuning.PlayerSpeed < landAfter * 0.6, "the circle can be left in time")
+		-- it really can get there in the time the circle is up, even a tick late
+		local flying = landAfter - leapAfter - 0.2
+		assert(distance - m.PounceSpeed * flying <= m.PounceReach, "it reaches the spot from " .. distance)
+	end
+	assert(m.PounceReach > m.PounceRadius, "a landing near the spot still counts")
 	eq(m.Split, 2, "two mites")
-	local mite = EnemyConfig.Types.ParcelMite
-	assert(mite.MaxHealth <= 20 and mite.Damage <= 8, "mites are weak")
+	local mimic = EnemyConfig.Scaled("ParcelMimic", R10.Tier)
+	local mite = EnemyConfig.Scaled("ParcelMite", R10.Tier)
+	local dps = EnemyConfig.Flashlight.DPS
+	assert(mimic.MaxHealth / dps <= 3, "a mimic burns in about 2 s of beam")
+	assert(mite.MaxHealth / dps <= 1, "a mite burns in under a second")
+	assert(mimic.WalkSpeed < MonsterTuning.PlayerSpeed and mite.WalkSpeed < MonsterTuning.PlayerSpeed, "outrunnable")
+	local hitsToDown = 100 / math.max(mimic.Damage, mite.Damage)
+	assert(hitsToDown >= 5, "solo can take a few hits")
+end)
+
+test("L10 mimic regressions: no pounce through walls, no hit from thin air, a real disguise", function()
+	local source = fs.readFile("src/server/Enemies/ParcelMimic.luau")
+	assert(source:find("and ai.LineOfSight(root.Position, target.Position)", 1, true), "pounce needs a clear line")
+	assert(source:find("> T.PounceReach then", 1, true), "a short landing does no damage")
+	assert(source:find("root.Anchored = true", 1, true), "a disguised mimic doesn't physically simulate")
+	assert(source:find('Name = "Goo"', 1, true) and source:find("light.Enabled = false", 1, true), "no glow in disguise")
+	assert(source:find("Think = prowl", 1, true), "mites hunt players instead of raiding shops")
+	local deliveries = fs.readFile("src/server/Levels/Deliveries.luau")
+	assert(deliveries:find("ParcelMimic.decoy(", 1, true), "real parcels share the mimic's look")
+end)
+
+test("L10 completion: both stages needed, Level 11 unlocks, rewards pay once", function()
+	local function outcome(day: boolean, night: boolean, already: boolean)
+		return Logic.outcome({
+			Eligible = true,
+			InRoster = true,
+			DayCleared = day,
+			NightSuccess = night,
+			AlreadyCompleted = already,
+		})
+	end
+	eq(outcome(true, true, false), "FirstClear", "both done")
+	eq(outcome(false, true, false), "DayMissing", "night only")
+	eq(outcome(true, false, false), "NightFailed", "day only")
+	local completed = {}
+	for i = 1, 9 do
+		completed[string.format("L%02d", i)] = 1
+	end
+	assert(not Logic.isUnlocked(CampaignConfig.Levels, completed, "L11"), "L11 locked before L10")
+	eq(Logic.nextLevel(CampaignConfig.Levels, completed).Id, "L10", "L10 stays next until cleared")
+	completed.L10 = 1
+	assert(Logic.isUnlocked(CampaignConfig.Levels, completed, "L11"), "L11 unlocks")
+	assert(Logic.isUnlocked(CampaignConfig.Levels, completed, "L10"), "and L10 can be replayed")
+	eq(outcome(true, true, true), "Replay", "second clear is a replay")
+	local first = Logic.reward(L10.Rewards, true, CampaignConfig.ReplayFraction)
+	local replay = Logic.reward(L10.Rewards, false, CampaignConfig.ReplayFraction)
+	eq(first.Cash, L10.Rewards.Cash, "full cash first")
+	eq(first.XP, L10.Rewards.XP, "full XP first")
+	assert(replay.Cash < first.Cash and replay.XP < first.XP, "reduced on replay")
+end)
+
+test("unfinished stages are explained: exactly what's missing, with progress", function()
+	local tracker = Logic.newTracker(L10.Day.Objectives)
+	for _ = 1, 5 do
+		Logic.record(tracker, "A", "ParcelSorted")
+	end
+	local missing = Logic.unfinished(tracker, "A", true)
+	eq(#missing, 2, "sorting and logbook")
+	assert(missing[1]:find("(5/8)", 1, true), "progress shown: " .. missing[1])
+	Logic.record(tracker, "A", "DriverLogFound")
+	for _ = 1, 3 do
+		Logic.record(tracker, "A", "ParcelSorted")
+	end
+	eq(#Logic.unfinished(tracker, "A", true), 0, "nothing missing")
+	local night = Logic.newTracker(L10.Night.Objectives)
+	eq(#Logic.unfinished(night, "A", true), 1, "survive is met at dawn; only the nests are missing")
+end)
+
+test("Studio without DataStores falls back to memory and never tells you to change settings", function()
+	local source = fs.readFile("src/server/Services/DataService.luau")
+	assert(source:find("usingMock = true", 1, true), "memory fallback")
+	assert(source:find("if usingMock then", 1, true), "all storage goes through it")
+	assert(source:find("StudioAccessToApisNotAllowed is expected", 1, true), "explains the message")
+	assert(not source:find("Enable Studio Access", 1, true), "doesn't tell you to enable API access")
 end)
 
 test("L10 module records every event its objectives need", function()

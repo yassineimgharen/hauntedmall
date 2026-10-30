@@ -370,7 +370,7 @@ function Hud:_buildOverlays()
 		Size = UDim2.fromOffset(420, 18),
 		Position = UDim2.new(0, 16, 1, -12),
 		AnchorPoint = Vector2.new(0, 1),
-		Text = "⚠ Studio test mode: DataStores off, progress is not saved",
+		Text = "ℹ️ Studio test mode: saving is off, progress lasts this session only",
 		TextColor3 = C.Gold,
 		TextStrokeTransparency = 0.4,
 		Visible = false,

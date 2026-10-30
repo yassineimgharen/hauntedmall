@@ -26,7 +26,33 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
-## §L9: Level 9 fixes (switchboard, fire, completion): test this first
+## §L10: Level 10 fixes (Special Delivery / Return to Sender): test this first
+
+Setup: Workspace `MissionTest_Level` = `L10` (string) before Play, no `FastPhases`. Don't use `MissionTest_CompleteStage` if you want to test real completion. Studio saving is off (`StudioAccessToApisNotAllowed` in Output is expected, and the HUD says "saving is off"): leave API access off. Progress lasts for that Play session, so test Level 11 unlocking and replays within one session.
+
+**Day: Special Delivery**
+- [ ] L10-1 About 4 s in: banner "📦 MYSTERY DELIVERIES". The arrow leads to the loading dock (via a south restaurant's back door, then the service corridor). Ten parcels; a manifest board on the east wall behind the conveyor; the truck's side door is labelled "🔒 LOGBOOK: sort 5 more parcels".
+- [ ] L10-2 Inspect a parcel (hold E 1.2 s): a label shows FROM (with "✓ on manifest" or "⚠ NOT ON MANIFEST"), TO, CONTENTS and "🔦 Shine your flashlight". A tip pops up the first time.
+- [ ] L10-3 Press 1 and shine on it: "✓ UV CLEAN" or "☣ UV HANDPRINT!" floats up, the label's last line says what to do, and infected parcels show purple handprints on top and sides. Check a conveyor parcel too. The Avocados and Mozzarella parcels look legitimate but are infected.
+- [ ] L10-4 Correct call: "📦 DELIVERED ✓" (it fades and **leaves nothing behind you can bump into**) or "☣ QUARANTINED ✓" (box turns red). The objective and toast count up (n/8). The arrow moves on to another parcel.
+- [ ] L10-5 **Wrong call on purpose, 3 times or more:** "❌ WRONG CALL", a toast explains it, the parcel stays with its UV line showing, and 1.5 s later you can call it again. **You can still reach 8/8** (before this fix, 3 wrong calls made the day impossible).
+- [ ] L10-6 After 5 correct: the truck door label turns gold, "📓 DRIVER'S LOGBOOK: READ ME". The door sits flat on the truck's side. Hold E 2 s: a banner and toast show the log. Before 5, the prompt says "Locked: sort n more". After 8: banner "DELIVERIES SORTED" if the log isn't read yet.
+- [ ] L10-7 Leave something undone until dusk: the toast names exactly what's missing, e.g. "Sort the deliveries correctly (5/8)". The night's HUD hint warns the level can't complete.
+
+**Night: Return to Sender**
+- [ ] L10-8 Purple nest labels show through walls. The arrow leads to the nearest. Nests: loading dock, service corridor, Taco Eclipse, Lucky Wok. Hold your flashlight on one: the bar fills in about 6 s, "🔥 NEST BURNED!", toast "(n/4)", objective counts up.
+- [ ] L10-9 Disguise: boxes around the hall all look **identical** (tape, label, flaps), no smoke, no glow, no movement beyond the faintest breathing. Walk up to them until one bursts: scraps fly, flaps open with teeth, it stands up on legs, shaking, with "😱 MIMIC!". Shining a light from afar also wakes it.
+- [ ] L10-10 Standing behind a wall from a sleeping mimic shouldn't wake it (until you're within about 4 studs), and **it must never pounce or hurt you through a wall**.
+- [ ] L10-11 Attacks: at mid range a purple circle fills under you while it crouches, then it leaps. Step out and you take nothing. Stay and you take about −16. Up close: flaps gape and eyes go red, then a bite.
+- [ ] L10-12 Flashlight: sparks, flash and a health bar on the mimic; about 2 s to kill. It puffs cardboard smoke and two small mites appear (under 1 s to kill each). You can outrun everything.
+- [ ] L10-13 Nests hatch awake mimics every ~25 s ("A Parcel Mimic hatched") up to 2 awake when solo. They come to you and don't wander off to the East Wing, even if you own a shop.
+- [ ] L10-14 Burn the 4th nest: "🔥 ALL NESTS BURNED" and every sleeper wakes and hunts you. Kill them all: "✅ INFESTATION CLEARED", dawn about 10 s later. If you leave some alive, dawn just comes on time and the level still counts.
+- [ ] L10-15 Dawn with day and night done: LEVEL COMPLETE (+$1,100 · 1,200 XP), "Level 11 unlocked". Day missing: "DAY NOT CLEARED". Nests missing: "LEVEL FAILED" naming what's missing. Keep playing in the same session: L10 again is "LEVEL REPLAYED" with a reduced reward.
+- [ ] L10-16 FPS (Shift+F5) with several mimics awake. Please send the number.
+
+**Short checklist for the Dell:** L10-3, **L10-5**, L10-6, L10-9, **L10-10**, L10-11, L10-12, L10-14, L10-15, L10-16.
+
+## §L9: Level 9 fixes (switchboard, fire, completion)
 
 Setup: Workspace `MissionTest_Level` = `L09` (string) before Play, no `FastPhases`. Play the day normally (don't use `MissionTest_CompleteStage` for the switchboard: it marks the objective but doesn't move the breakers).
 

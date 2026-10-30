@@ -370,7 +370,10 @@ local function endDay()
 				else
 					Notify.player(
 						player,
-						"❌ Day objectives unfinished. You can still play tonight, but the level needs this day cleared: retry next shift.",
+						string.format(
+							"❌ Day not cleared. Still to do: %s. You can play tonight, but the level needs this day: retry next shift.",
+							table.concat(CampaignLogic.unfinished(dayTracker, player.UserId, true), "; ")
+						),
 						"warning"
 					)
 				end
@@ -462,8 +465,10 @@ local function endNight()
 					then string.format("Finish your own next level first to unlock Level %d.", level.Index)
 					else "You joined after the night began; tonight's level credit needs the whole night."
 			elseif outcome == "NightFailed" then
-				result.Reason =
-					"The night's required objectives weren't met. The level stays open: retry it next shift."
+				result.Reason = string.format(
+					"Not done tonight: %s. The level stays open: retry it next shift.",
+					table.concat(CampaignLogic.unfinished(nightTracker, player.UserId, true), "; ")
+				)
 			elseif outcome == "DayMissing" then
 				result.Reason =
 					"Night survived, but this level's day objectives aren't cleared yet. Clear the day next shift."

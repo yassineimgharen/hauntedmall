@@ -336,8 +336,9 @@ function DataService.Init()
 		if not probeOk then
 			usingMock = true
 			warn(
-				"[DataService] DataStores unavailable in Studio — using an in-memory store. "
-					.. "Enable Game Settings › Security › 'Enable Studio Access to API Services' to test saving."
+				"[DataService] Studio test mode: DataStores aren't available here "
+					.. "(StudioAccessToApisNotAllowed is expected). Progress lives in memory for this "
+					.. "play session only and nothing is saved. No action needed."
 			)
 		end
 	elseif not ok then

@@ -2,7 +2,36 @@
 
 _Last updated: 2026-10-28._
 
-## Current: Level 9 fixes (switchboard, fire visuals, completion)
+## Current: Level 10 fixes (Special Delivery / Return to Sender)
+Static checks ✅ · unit tests 136/136 ✅ (79 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §L10).
+
+**Confirmed from the code (no Studio run):**
+1. **The day could become impossible.** One call per parcel and only correct calls counted, so 3 wrong calls capped it at 7 of the required 8 (and enough wrong calls locked the logbook too).
+2. **Delivered parcels stayed solid and invisible,** with their tape floating. The truck's door was rotated 90°. A wrong call at 5 sorted repeated the "cab open" toast. Gamepad Y was both Quarantine and "open shop".
+3. **Pounces hit through walls** (sight isn't required within 25 studs) and damage landed even if the mimic never arrived; at long range it couldn't cover the distance in time.
+4. **The disguise didn't work:** only mimics had tape and labels, and they smoked and glowed purple while "hidden".
+5. **Mimics could spawn inside walls** (random 5-stud offset beside corridor walls).
+6. **Solo nests rarely hatched:** two sleeping mimics filled the cap of 2. Awake creatures with nobody nearby walked off to raid shops.
+
+**Checked and fine:** the reward and unlock logic, nest light targets, objective events, and the save fallback (only its message was wrong).
+
+**Fixed:**
+- Wrong calls still cost you (a hatchling, no perfect bonus), but the parcel comes back with its UV showing.
+- Labels say whether the sender is on the manifest and what to do after the UV check; popups for each result; handprints on the sides too; logbook label and a locked prompt with no hold.
+- Pounce needs line of sight, its warning scales with distance, and it only hurts if the mimic really arrives.
+- Real parcels look identical to mimics; sleeping mimics are anchored with no smoke or light (cheaper too); teeth, scrap burst, stand-up and gaping-flap animation; cardboard death puff.
+- Fixed, tested spawn spots. Nests hatch awake mimics and only awake creatures count toward the cap. Creatures hunt the nearest player rather than shops.
+- After the last nest, sleepers wake; once all are dead, dawn comes 10 s later.
+- All levels: dusk and dawn messages now name exactly which objectives are missing.
+- Studio save message now says no action is needed.
+
+**Files:** `Levels/Deliveries.luau`, `Levels/FoodCourtRules.luau`, `Enemies/ParcelMimic.luau`, `Shared/Config/MonsterTuning.luau`, `Shared/Campaign/CampaignConfig.luau`, `Shared/Campaign/CampaignLogic.luau` (`unfinished`), `Services/MissionService.luau`, `Services/DataService.luau` (message), client `MonsterAnimations.luau`, `EnemyVisualController.luau`, `UI/Screens/Hud.luau`, `tests/Chapter2.spec.luau`, docs.
+
+**Not changed, worth knowing:** Possessed Carts (Level 8) and Meatballs still use the default AI, so a cart with nobody nearby can wander toward owned shops.
+
+---
+
+## Previous: Level 9 fixes (switchboard, fire visuals, completion)
 Static checks ✅ · unit tests 125/125 ✅ (68 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §L9).
 
 **Your report: the day ended with "Reset the main switchboard" unchecked.** The completion logic itself worked: pulling both breakers within the window recorded the objective (now covered by tests). What made it near-impossible to finish:
