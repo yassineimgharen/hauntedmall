@@ -2,26 +2,73 @@
 
 The Lune tests run the real server code, but in a fake engine. This harness checks what only Roblox can show: real collisions, `PathfindingService`, raycasts, Humanoid walking, welds and conveyors.
 
-**First real run (reported 2026-10-31): 39 passed, 1 failed.** The failure was `an escalator carries a character: 0,0,0`; see [Escalator check](#escalator-check). The rewritten check has not run in Studio yet. In the fake engine (`tests/StudioHarness.spec.luau`) only its logic is tested.
+**Current build: harness version 3.** The first line of a run says `[QA] Night Shift Studio harness version 3 starting`. A different number, or no version at all, means an old place file is open.
+
+Studio runs reported so far, neither on this version: 39 passed, 1 failed; then six failures and a disconnect at L08 (below). That second run's `0, 0, 0` line and its ignored `QA_EscalatorsOnly` match the build before version 2, so it almost certainly used an old place file. In the fake engine (`tests/StudioHarness.spec.luau`) only the harness's logic is tested.
 
 ## Run it
 
-1. Pull and build the QA place. It is the normal game plus one script:
+1. **Close Studio first.** Studio keeps the file it opened, so rebuilding underneath it changes nothing. Then, in the repo folder:
 
    ```powershell
    git pull
+   git log -1 --oneline
+   Remove-Item NightShiftQA.rbxl -ErrorAction SilentlyContinue
    rojo build qa.project.json -o NightShiftQA.rbxl
    ```
 
-2. Open `NightShiftQA.rbxl` in Studio. Leave **Enable Studio Access to API Services** off. The harness refuses to run if it is on, so it can't touch saved data.
-3. Optional: to test only some levels first, select **Workspace** and add attributes:
-   - `QA_Levels` (string), for example `L12,L14`. A first run on these two takes a few minutes.
-   - `QA_Walk` (number), how many prompts per stage a real character walks to. The default is 3; 0 is fastest.
-   - `QA_EscalatorsOnly` (boolean, ticked), only the one-off checks and escalator rides, about 2 minutes.
-   - `QA_Riders` (number), wait for this many players and ride together. Use it with **Test → Clients and Servers**, and read the results in the Server window.
-4. Press **Play (F5)**, keep the Output window open and don't move the character. The script steers it, and skips phases by itself.
-5. Wait for `[QA] DONE: n passed, m failed`. A full run over all levels takes about 20 minutes (an estimate; it hasn't been timed).
-6. Copy the lines starting `[QA] FAILED` back to me, or all the `[QA]` lines.
+2. Open that `NightShiftQA.rbxl` from that folder. Leave **Enable Studio Access to API Services** off: the harness refuses to run if it is on, so it can't touch saved data.
+3. Optional: select **Workspace** and add attributes. A new build has none, so add them after every rebuild:
+
+   | Attribute | Type | What it does |
+   |---|---|---|
+   | `QA_EscalatorsOnly` | boolean, ticked | Only the one-off checks and escalator rides |
+   | `QA_From` | string, like `L08` | Resume: start at that level, run the rest, skip the rides |
+   | `QA_Levels` | string, like `L12,L14` | Only these levels |
+   | `QA_Walk` | number | Prompts per stage a character walks to. Default 3; 0 is fastest |
+   | `QA_Riders` | number | Wait for this many players and ride together. Use **Test → Clients and Servers**, and read the **Server** window |
+   | `QA_StageLimit` | number | Seconds a stage may take before it's given up on. Default 420 |
+
+4. Press **Play (F5)**, keep Output open and don't move the character. Dragging the camera with the right mouse button is fine, and every 10 minutes or so it may stop an idle disconnect.
+5. Check the first `[QA]` line for the version and your settings. Then wait for `[QA] DONE`, or `[QA] PARTIAL` if the run stopped early.
+6. Copy all the `[QA]` lines back to me.
+
+If a run dies, the Output has a `[QA] RESUME` line, or look for the last `[QA] LEVEL` line. Put that level in `QA_From` and press Play again.
+
+## What the results mean
+
+- **PASS / FAIL:** it was measured. FAIL is a problem to investigate, and may still be the harness's.
+- **INCONCLUSIVE:** it couldn't be measured this time, such as a monster blocking every try. Not a pass, and not evidence of a bug.
+- **`[QA] STAT`:** time, memory and instance count after each stage, to show a leak or a run nearing the memory limit.
+- **`[QA] CLIENT`:** the helper script in the client: when it loaded, and when Roblox called it idle.
+
+## The 2026-10-31 run: six failures and a disconnect
+
+| Failure | Verdict | Why |
+|---|---|---|
+| Escalators `0, 0, 0` | Harness, old build | Only the old build can print that line |
+| `QA_EscalatorsOnly` ignored | Old build | The old build doesn't have that setting |
+| L01 Night 49.7 away; L03 Night 28.0 and 76.0 away | Inconclusive, harness flaw confirmed | The old walk carried on with a dead character's body and never said why it stopped. Monsters can kill it at night. Now: damage off while walking, retries, and it reports where it stopped and on what |
+| L05 Day spawn at (-60, 3, 60) | Harness false alarm | The vault's wall really is within half a stud of the marker, but only monsters use it, only at night, and the vault is gone by then. Now checked at night only, and it names what it hits |
+| L05 Night `Serve Customer`, `Order Stock` NoPath | Inconclusive | In the built geometry, every shop is open at the harness's agent size. Roblox's navmesh updates after parts change, and that stage had just changed many, but this is unproven. Now: retries at 5 and 15 s, a narrower agent, then a failure naming the shop and start point |
+| Disconnect at L08 | Inconclusive | Nothing in the game's code kicks a player in this mode. Idle disconnect after 20 minutes and running out of memory on 8 GB are both possible. The old harness then waited forever for a character, which is why there was no `DONE`. Now: a summary and a resume line at once, plus client heartbeats and memory figures to settle it |
+
+## Escalator check
+
+A real result now comes in three layers:
+
+1. **Server rider:** a test character the server simulates, with no client involved, on both belts. This is Roblox's physics acting on the belt directly. If this fails, the belts are broken.
+2. **Client's view:** the helper script reports the belt speed the client sees, since a player's physics runs there. If layer 1 passes and this fails, the speed isn't replicating.
+3. **Player rides:** standing, walking with the belt and against it. It first waits up to 90 s for gravity to move the character. A client that never starts is INCONCLUSIVE, because no ride was measured.
+
+| Ride | Passes when |
+|---|---|
+| Standing, server rider or player | Reaches the end at 60–130% of belt speed, climbing or descending the right way, and ends up standing at the far end |
+| Walking with the belt | Reaches the end at 1.5 × belt speed or more |
+| Walking against it | Reaches the end, slower than the walking speed of 16 |
+| All of them | No step over 6 studs between samples, under 1 stud sideways, under 1.5 studs of bounce. Standing riders also slip back under 0.5 studs |
+
+These limits are first estimates and have not been checked against the real engine. Each result line prints the measured numbers, so a limit that is wrong can be told from a bad ride.
 
 The published game never contains this script: `default.project.json` doesn't include it, and a test checks that.
 
@@ -32,35 +79,13 @@ The published game never contains this script: `default.project.json` doesn't in
 | Every enabled prompt has a route | The real `PathfindingService`, from the character to within activation range |
 | Line of sight on prompts that need it | Real raycast from where the path ends |
 | A real character gets there | `Humanoid:MoveTo` along the path, with real collisions, for the farthest few prompts of each stage |
-| Monster spawn points | Floor below them, nothing solid inside them |
+| Monster spawn points | At night: floor below them, nothing fixed inside them |
 | NPCs and monsters move | Real Humanoids, sampled over 15 s |
 | Bosses | L07 and L14: weak points on the body (welds really hold), a beam raycast really hits them |
 | L12 ramp | A real path down the basement ramp (BUG-01) |
-| Escalators | Every rider, both escalators: standing, walking with the belt, walking against it. Speed, climb, stepping off, teleports, jitter |
+| Escalators | Both belts: a server-simulated rider, the belt speed the client sees, and player rides. Speed, climb, stepping off, teleports, jitter |
 | Remotes | All created |
 | World sanity | No parts at impossible positions |
-
-## Escalator check
-
-The first version of this check could not tell a broken escalator from a client that hadn't started. It ran as soon as the save data loaded, moved the character from the server, waited 1.5 s and compared positions. A character is simulated by its client, so with no client physics running yet the server sees it stay exactly where it was put. A delta of exactly zero means physics never touched the character: even a dead belt would leave gravity settling it on the slope. So that result says nothing about the belts either way. The old pass rule was also too weak: any rise counted, so a bounce would have passed.
-
-The check now waits (up to 90 s) until gravity moves the character, and fails with its own message if that never happens. Then it times a full ride with samples every 0.1 s:
-
-| Ride | Passes when |
-|---|---|
-| Standing | Reaches the end at 60–130% of belt speed, climbing or descending the right way, and ends up standing at the far end |
-| Walking with the belt | Reaches the end at 1.5 × belt speed or more |
-| Walking against it | Reaches the end, slower than the walking speed of 16 |
-| All of them | No step over 6 studs between samples, under 1 stud sideways, under 1.5 studs of bounce. Standing riders also slip back under 0.5 studs |
-
-These limits are first estimates and have not been checked against the real engine. Each result line prints the measured numbers, so a limit that is wrong can be told from a bad ride.
-
-| What Output says | What it means |
-|---|---|
-| `...client is simulating the character` fails | The client never started within 90 s. No ride was measured, and it says nothing about the belts |
-| `carries a standing character` fails with speed near 0 | Physics is running but the belt isn't carrying anyone: a game bug |
-| Fails on biggest step, sideways or bounce | A carried rider that teleports or jitters |
-| `stepped off false` | The rider got stuck or fell at the far end |
 
 ## What it can't check
 

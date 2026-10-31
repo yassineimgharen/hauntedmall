@@ -28,7 +28,7 @@ To skip a phase while playing, switch to the **Server** view (Test tab → Curre
 
 ## §QA: Full QA pass: test this first
 
-Automated results and what they do and don't prove: `docs/qa/QA_REPORT.md`. Those results ran outside Roblox, so these are what only you can check. The harness's first Studio run was 39 passed, 1 failed; to rerun the rewritten escalator check, follow step 1 with `QA_EscalatorsOnly` ticked on Workspace.
+Automated results and what they do and don't prove: `docs/qa/QA_REPORT.md`. Those results ran outside Roblox, so these are what only you can check. To run just the escalator checks, or to resume from a level, see the settings in `docs/qa/STUDIO_HARNESS.md`.
 
 **1. Run the engine harness (about 20 minutes, or a few for two levels).** Steps are in `docs/qa/STUDIO_HARNESS.md`. Short version:
 
@@ -37,7 +37,7 @@ git pull
 rojo build qa.project.json -o NightShiftQA.rbxl
 ```
 
-Open it, leave API access off, press Play, and send me the `[QA]` lines.
+Close Studio before building, then open the new file, leave API access off, press Play, and send me the `[QA]` lines. The first line must say harness version 3.
 
 **2. By hand, in the normal place, with `MissionTest_Level` set on Workspace:**
 

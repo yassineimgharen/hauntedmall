@@ -4,11 +4,11 @@ _Last updated: 2026-10-31._
 
 ## Current: full QA pass, automated playtesting and bug fixes
 
-**Studio harness: first real run 39 passed, 1 failed.** The failure, `an escalator carries a character: 0,0,0`, can't be a measured belt failure: an exact zero means physics hadn't touched the character yet. The likely cause is that the check ran before the client was simulating. The check is rewritten and **the rerun is pending**, so **whether the belts carry players in the real engine is still unconfirmed.** No game code changed for it. Details: `docs/qa/STUDIO_HARNESS.md`.
+**Studio harness, version 3: not run yet.** Two earlier runs were reported: 39 passed, 1 failed; then six failures and a disconnect at L08. The second almost certainly used an old place file, and no game bug has been confirmed from either. Whether the escalators carry players in the real engine is still unconfirmed. Verdicts on each failure: `docs/qa/STUDIO_HARNESS.md`.
 
 **Studio verification of everything else: not done.** Everything below ran in Lune, on the real server code in a fake engine. Full report: `docs/qa/QA_REPORT.md`. Results: `docs/qa/RESULTS.md`. One report per level: `docs/qa/levels/`. Your Studio checklist: `docs/TESTING.md` §QA.
 
-**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **710 tests: 710 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`) passed 28 of 28 at the previous commit. It wasn't repeated, because this change touched only the test tools and docs, so `docs/qa/` no longer counts those 28.
+**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **723 tests: 723 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`) passed 28 of 28 at the previous commit. It wasn't repeated, because this change touched only the test tools and docs, so `docs/qa/` no longer counts those 28.
 
 **Fixed:**
 - **L12 was impossible:** the ground plate sealed the basement ramp.

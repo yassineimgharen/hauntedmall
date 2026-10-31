@@ -28,6 +28,9 @@
 			"StarterPlayerScripts": {
 				"Client": {
 					"$path": "src/client"
+				},
+				"NightShiftQAClient": {
+					"$path": "tools/studio/NightShiftQAClient.client.luau"
 				}
 			}
 		},

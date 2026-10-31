@@ -57,33 +57,45 @@ test("the harness refuses to run when a real DataStore is connected", function()
 	truthy(stopped, "said why")
 end)
 
--- Runs just the harness's escalator rides, with fake client physics (see CharacterPhysics in the
--- engine). Again this tests the check, not Roblox: can it tell a working escalator from a broken one?
-local function escalatorRun(physics: any, players: number?): (string, string)
-	local world = Engine.new({
-		Seed = 4,
-		Attributes = { QA_EscalatorsOnly = true, QA_Riders = players or 1 },
-		CharacterPhysics = physics,
-	})
+-- Runs the harness with fake client physics (see CharacterPhysics in the engine). Again this tests
+-- the check, not Roblox: can it tell a working escalator from a broken one?
+local function harnessRun(attributes: { [string]: any }, physics: any, players: number?, setup: ((any) -> ())?): any
+	local world = Engine.new({ Seed = 4, Attributes = attributes, CharacterPhysics = physics })
 	world:boot()
 	for i = 1, players or 1 do
 		world:addPlayer("Rider" .. i)
 	end
+	if setup then
+		setup(world)
+	end
 	world:runFile("tools/studio/NightShiftQA.server.luau")
+	return world
+end
+
+local function finished(world: any, seconds: number)
 	truthy(
 		world:runUntil(function()
 			return world.Workspace:GetAttribute("QA_Result") ~= nil
-		end, 400),
-		"finished"
+		end, seconds),
+		"finished within its limits"
 	)
 	Check.noServerErrors(world)
-	local failed = {}
+end
+
+local function lines(world: any, marker: string): string
+	local found = {}
 	for _, warning in world.Warnings do
-		if warning.Message:find("[QA] FAIL ", 1, true) then
-			table.insert(failed, warning.Message)
+		if warning.Message:find(marker, 1, true) then
+			table.insert(found, warning.Message)
 		end
 	end
-	return world.Workspace:GetAttribute("QA_Result"), table.concat(failed, "\n")
+	return table.concat(found, "\n")
+end
+
+local function escalatorRun(physics: any, players: number?): (string, string, string)
+	local world = harnessRun({ QA_EscalatorsOnly = true, QA_Riders = players or 1 }, physics, players)
+	finished(world, 500)
+	return world.Workspace:GetAttribute("QA_Result"), lines(world, "[QA] FAIL "), lines(world, "[QA] INCONCLUSIVE ")
 end
 
 test("escalator rides pass both ways, standing and walking, when the belts work", function()
@@ -105,10 +117,174 @@ test("two players ride the same escalators together", function()
 	truthy(tonumber(result:match("(%d+) passed")) >= 12, "ran every ride: " .. result)
 end)
 
-test("a client that never starts is a failure that says so, not a pass", function()
-	local _, failed = escalatorRun({ ReadyAt = 100000 })
-	truthy(failed:find("client is simulating", 1, true), failed)
-	eq(failed:find("carries", 1, true), nil, "no ride was claimed")
+test("a client that never starts is reported as unmeasured, and the server rider still tests the belts", function()
+	local result, failed, unclear = escalatorRun({ ReadyAt = 100000 })
+	truthy(unclear:find("never simulated", 1, true), unclear)
+	eq(failed, "", "not a game failure")
+	truthy(result:find("server", 1, true) == nil and tonumber(result:match("(%d+) passed")) >= 5, result)
+end)
+
+test("a real ride uses a rider the server simulates itself, removed afterwards", function()
+	local world = harnessRun({ QA_EscalatorsOnly = true }, {})
+	finished(world, 500)
+	eq(lines(world, "server rider"), "", "no failed server rider")
+	eq(world.Workspace:FindFirstChild("QA_Rider"), nil, "cleaned up")
+end)
+
+test("the server rider catches a belt that carries nothing, with no client involved", function()
+	local _, failed = escalatorRun({ Carry = 0, ReadyAt = 100000 })
+	truthy(failed:find("Escalator1 (up): real physics carries a server-owned rider", 1, true), failed)
+	truthy(failed:find("Escalator2 (down): real physics carries a server-owned rider", 1, true), failed)
+end)
+
+test("a client that doesn't see the belt's speed is a failure", function()
+	local world = harnessRun({ QA_EscalatorsOnly = true }, { ReadyAt = 20 })
+	world:runUntil(function()
+		return world.ReplicatedStorage:FindFirstChild("QA_ClientReport") ~= nil
+	end, 60)
+	local remote = world.ReplicatedStorage:FindFirstChild("QA_ClientReport")
+	remote.OnServerEvent:_fire(world.Players:GetPlayers()[1], "Ready", {
+		Ramps = { Escalator1 = 0, Escalator2 = 7 },
+		Text = "loaded",
+	})
+	finished(world, 500)
+	local failed = lines(world, "[QA] FAIL ")
+	truthy(failed:find("Escalator1 (up): the belt's speed reaches", 1, true), failed)
+	eq(failed:find("Escalator2 (down): the belt's speed reaches", 1, true), nil, failed)
+end)
+
+test("QA_EscalatorsOnly limits the run, whether ticked or typed; false doesn't", function()
+	for _, value in { true, "true" } do
+		local world = harnessRun({ QA_EscalatorsOnly = value, QA_Walk = 0 }, {})
+		finished(world, 500)
+		eq(world:GetPrints("[QA] LEVEL"), "", "no levels ran")
+	end
+	local world = harnessRun({ QA_EscalatorsOnly = "false", QA_Levels = "L01", QA_Walk = 0, QA_NoPhysics = true }, {})
+	finished(world, 300)
+	truthy(world:GetPrints("[QA] LEVEL L01 starting") ~= "", "a level ran")
+end)
+
+test("the run prints its version, and the docs give the same one, so an old place file shows", function()
+	local fs = require("@lune/fs")
+	local source = fs.readFile("tools/studio/NightShiftQA.server.luau")
+	local version = source:match("local HARNESS_VERSION = (%d+)")
+	truthy(fs.readFile("docs/qa/STUDIO_HARNESS.md"):find("harness version " .. version, 1, true), "documented")
+	local world = harnessRun({ QA_EscalatorsOnly = true, QA_NoPhysics = true }, {})
+	finished(world, 60)
+	truthy(world:GetPrints("harness version " .. version .. " starting") ~= "", "printed")
+end)
+
+test("QA_From resumes at that level, skips the rides, and runs through the rest", function()
+	local world = harnessRun({ QA_From = "L13", QA_Walk = 0 }, {})
+	finished(world, 500)
+	eq(world:GetPrints("[QA] LEVEL L12 starting"), "", "earlier levels skipped")
+	truthy(world:GetPrints("[QA] LEVEL L13 starting") ~= "", "starts there")
+	truthy(world:GetPrints("[QA] LEVEL L14 starting") ~= "", "runs on")
+	eq(world:GetPrints("Escalator1"), "", "no rides")
+end)
+
+test("a QA_From that names no level fails instead of quietly testing nothing", function()
+	local world = harnessRun({ QA_From = "L99", QA_NoPhysics = true }, {})
+	finished(world, 60)
+	truthy(lines(world, "[QA] FAIL QA_From"):find("L99", 1, true), "said so")
+end)
+
+test("a disconnect ends the run at once with a summary and the level to resume from", function()
+	local world = harnessRun({ QA_From = "L08", QA_Walk = 0 }, {})
+	truthy(
+		world:runUntil(function()
+			return world:GetPrints("[QA] LEVEL L08 starting") ~= ""
+		end, 200),
+		"reached L08"
+	)
+	world:run(5)
+	world:removePlayer(world.Players:GetPlayers()[1])
+	world:run(1)
+	local result = world.Workspace:GetAttribute("QA_Result")
+	truthy(result and result:find("stopped:", 1, true), "partial result: " .. tostring(result))
+	truthy(lines(world, "[QA] STOPPED"):find("disconnected", 1, true), "said why")
+	truthy(lines(world, "[QA] RESUME"):find('QA_From = "L08"', 1, true), "said where to resume")
+	Check.noServerErrors(world)
+end)
+
+test("a stage over its time limit is given up on, and the run carries on", function()
+	local world = harnessRun({ QA_Levels = "L01,L02", QA_StageLimit = 1, QA_Walk = 3, QA_From = "L01" }, {})
+	finished(world, 500)
+	truthy(lines(world, "[QA] INCONCLUSIVE L01 Day: checks"):find("gave up after 1 s", 1, true), "timed out")
+	truthy(world:GetPrints("[QA] LEVEL L02 finished") ~= "", "went on to the next level")
+end)
+
+test("a character that dies on a walk tries again on its new body and isn't called lost", function()
+	local killed = false
+	local world
+	world = harnessRun({ QA_Levels = "L01", QA_Walk = 1, QA_From = "L01" }, {
+		After = function(model)
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			if not killed and humanoid and humanoid._moveTarget and world:phase() == "Day" then
+				killed = true
+				humanoid.Health = 0
+			end
+		end,
+	})
+	finished(world, 500)
+	truthy(killed, "the death happened")
+	eq(lines(world, "[QA] FAIL L01 Day: a character walks"), "", "retried, not failed")
+end)
+
+test("a character that really can't get there is a failure saying where it stopped and why", function()
+	local world = harnessRun({ QA_Levels = "L01", QA_Walk = 1, QA_From = "L01" }, {
+		After = function(model)
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				humanoid.WalkSpeed = 0
+			end
+		end,
+	})
+	finished(world, 800)
+	local failed = lines(world, "a character walks")
+	truthy(failed:find("first stuck at waypoint", 1, true), failed)
+	truthy(failed:find("ahead:", 1, true) and failed:find("nearest NPC:", 1, true), failed)
+end)
+
+local function spawnCheck(setup: ((any) -> ())?): string
+	local world = harnessRun({ QA_Levels = "L01", QA_Walk = 0, QA_NoPhysics = true }, nil, 1, setup)
+	finished(world, 300)
+	return lines(world, "spawn points stand on open floor")
+end
+
+test("the spawn check finds a wall in a spawn point and names it, but ignores someone walking past", function()
+	eq(spawnCheck(), "", "clean as built")
+	local function place(world: any, name: string, anchored: boolean, parent: any)
+		local roblox = require("@lune/roblox")
+		local part = world.Instance.new("Part")
+		part.Name = name
+		part.Size = roblox.Vector3.new(4, 6, 4)
+		part.CFrame = roblox.CFrame.new(-60, 5, 60)
+		part.Anchored = anchored
+		part.CanCollide = true
+		part.Parent = parent
+	end
+	truthy(
+		spawnCheck(function(world)
+			place(world, "StrayWall", true, world.Workspace)
+		end):find("StrayWall", 1, true),
+		"named the wall"
+	)
+	eq(
+		spawnCheck(function(world)
+			place(world, "Passerby", false, world.Workspace)
+		end),
+		"",
+		"a loose body isn't a wall"
+	)
+end)
+
+test("L05's daytime vault doesn't count against a night-only spawn marker, and every night is clean", function()
+	local world = harnessRun({ QA_Walk = 0, QA_NoPhysics = true }, nil)
+	finished(world, 1500)
+	eq(lines(world, "spawn points stand on open floor"), "", "every level, every night")
+	truthy(world:GetPrints("L05 Night: monster spawn points") ~= "", "the night check ran")
+	eq(world:GetPrints("L05 Day: monster spawn points"), "", "not checked by day")
 end)
 
 test("the check fails when a belt moves but doesn't carry anyone", function()
@@ -134,11 +310,11 @@ test("the check fails on teleporting riders", function()
 end)
 
 test("the check fails on jitter", function()
-	local sign = 1
+	local signs = {}
 	local _, failed = escalatorRun({
 		After = function(character)
-			sign = -sign
-			character:PivotTo(character:GetPivot() + character:GetPivot().RightVector * sign * 1.5)
+			signs[character] = -(signs[character] or 1)
+			character:PivotTo(character:GetPivot() + character:GetPivot().RightVector * signs[character] * 1.5)
 		end,
 	})
 	truthy(failed:find("carries a standing", 1, true), failed)
@@ -149,6 +325,9 @@ test("the shipped project doesn't include the harness", function()
 	local fs = require("@lune/fs")
 	local project = serde.decode("json", fs.readFile("default.project.json"))
 	eq(project.tree.ServerScriptService.NightShiftQA, nil, "production tree")
+	eq(project.tree.StarterPlayer.StarterPlayerScripts.NightShiftQAClient, nil, "no client helper either")
+	local qa = serde.decode("json", fs.readFile("qa.project.json"))
+	truthy(qa.tree.StarterPlayer.StarterPlayerScripts.NightShiftQAClient, "the QA place has it")
 end)
 
 Check.finish()

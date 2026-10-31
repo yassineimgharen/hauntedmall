@@ -957,9 +957,66 @@ function Engine.new(options: Options?): any
 		end
 		return nil
 	end
-	-- (only the Studio harness asks; nothing here checks overlaps)
-	function Methods.GetPartBoundsInBox(_self: any, _cf: any, _size: any, _params: any): { any }
-		return {}
+	-- Only the Studio harness asks. Two oriented boxes overlap unless some axis separates them.
+	function Methods.GetPartBoundsInBox(self: any, cf: any, size: any, params: any): { any }
+		local axesA = { cf.RightVector, cf.UpVector, cf.LookVector }
+		local halfA = { size.X / 2, size.Y / 2, size.Z / 2 }
+		local out = {}
+		for _, part in self:GetDescendants() do
+			if part:IsA("BasePart") and (not (params and params.RespectCanCollide) or get(part, "CanCollide")) then
+				local other = get(part, "CFrame")
+				local otherSize = get(part, "Size")
+				local between = other.Position - cf.Position
+				if between.Magnitude <= (size.Magnitude + otherSize.Magnitude) / 2 then
+					local axesB = { other.RightVector, other.UpVector, other.LookVector }
+					local halfB = { otherSize.X / 2, otherSize.Y / 2, otherSize.Z / 2 }
+					local axes = table.clone(axesA)
+					for _, axis in axesB do
+						table.insert(axes, axis)
+						for _, own in axesA do
+							local cross = own:Cross(axis)
+							if cross.Magnitude > 1e-4 then
+								table.insert(axes, cross.Unit)
+							end
+						end
+					end
+					local overlaps = true
+					for _, axis in axes do
+						local reach = 0
+						for i = 1, 3 do
+							reach += math.abs(axesA[i]:Dot(axis)) * halfA[i] + math.abs(axesB[i]:Dot(axis)) * halfB[i]
+						end
+						if math.abs(between:Dot(axis)) >= reach then
+							overlaps = false
+							break
+						end
+					end
+					if overlaps then
+						table.insert(out, part)
+					end
+				end
+			end
+		end
+		return out
+	end
+	function Methods.FindFirstAncestorOfClass(self: any, className: string): any
+		local node = self._parent
+		while node do
+			if node.ClassName == className then
+				return node
+			end
+			node = node._parent
+		end
+		return nil
+	end
+	function Methods.GetFullName(self: any): string
+		local names = { self._name }
+		local node = self._parent
+		while node and node ~= game do
+			table.insert(names, 1, node._name)
+			node = node._parent
+		end
+		return table.concat(names, ".")
 	end
 	function Methods.GetPivot(self: any): any
 		if self:IsA("BasePart") then
@@ -2106,6 +2163,18 @@ function Engine.new(options: Options?): any
 	world.ServerRoot = server
 
 	-- Runs a script file in this world's environment (the Studio harness's smoke test).
+	-- Printed lines containing `marker`, joined: what a person would read in Output.
+	function world:GetPrints(marker: string): string
+		local found = {}
+		for _, line in world.Log do
+			local text = tostring(line[1])
+			if text:find(marker, 1, true) then
+				table.insert(found, text)
+			end
+		end
+		return table.concat(found, "\n")
+	end
+
 	function world:runFile(path: string)
 		local node = create("ModuleScript")
 		node._name = path:match("[^/]+$")
@@ -2233,8 +2302,18 @@ function Engine.new(options: Options?): any
 	end
 
 	local function stepCharacterPhysics(dt: number)
+		local characters = {}
 		for _, player in PlayersService._children do
-			local character = player._p and player._p.Character
+			if player._p and player._p.Character then
+				table.insert(characters, player._p.Character)
+			end
+		end
+		for _, model in Workspace._children do
+			if model:GetAttribute("QA_Rider") then
+				table.insert(characters, model)
+			end
+		end
+		for _, character in characters do
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 			if root and humanoid and not clientLoading(character) then
