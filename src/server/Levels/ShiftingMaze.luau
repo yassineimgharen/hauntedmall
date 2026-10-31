@@ -508,7 +508,17 @@ function ShiftingMaze.StartNight()
 		local cell = { rng:NextInteger(3, R.Cols), rng:NextInteger(3, R.Rows) }
 		task.delay(2 + i, function()
 			if token == myToken then
-				local enemy = EnemyService.Spawn("ShadowCrawler", cellCenter(cell), R.Tier)
+				-- never in a cell someone's standing in: try a few others
+				local spot = cellCenter(cell)
+				for _ = 1, 6 do
+					if not EnemyService.PlayerNear(spot) then
+						break
+					end
+					spot = cellCenter({ rng:NextInteger(3, R.Cols), rng:NextInteger(3, R.Rows) })
+				end
+				local enemy = if EnemyService.PlayerNear(spot)
+					then nil
+					else EnemyService.Spawn("ShadowCrawler", spot, R.Tier)
 				if enemy then
 					enemy.Patrols = true
 				end

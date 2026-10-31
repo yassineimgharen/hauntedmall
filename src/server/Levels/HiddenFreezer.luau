@@ -699,6 +699,12 @@ function HiddenFreezer.StartNight()
 		if token ~= myToken then
 			return
 		end
+		while token == myToken and EnemyService.PlayerNear(WRAITH_HOME, 18) do
+			task.wait(1) -- it wakes once nobody's standing over it
+		end
+		if token ~= myToken then
+			return
+		end
 		for i = 1, FoodCourtRules.wraithCount(#Players:GetPlayers()) do
 			local enemy = EnemyService.Spawn("FrostWraith", WRAITH_HOME + Vector3.new(0, 0, (i - 1) * 6), R.Tier)
 			if enemy then

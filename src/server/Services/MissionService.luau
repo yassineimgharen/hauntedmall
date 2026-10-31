@@ -595,6 +595,24 @@ function MissionService.GetNightRules(): { [string]: any }
 	return rules
 end
 
+-- Once every shop is taken, anyone without one has their shop chores covered for this stage.
+local function coverShopless()
+	local current = tracker
+	if not current or stageFinal or #ShopService.GetOwnedShops() < #ShopService.GetAllShops() then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		if not ShopService.GetShopOf(player) and CampaignLogic.coverShopChores(current, player.UserId) then
+			Notify.player(
+				player,
+				"🛍️ Every shop has an owner today, so your shop tasks are covered. Help the team!",
+				"info"
+			)
+			markDirty(player)
+		end
+	end
+end
+
 function MissionService.GetLevel(): any?
 	return active
 end
@@ -671,6 +689,7 @@ function MissionService.Start()
 	task.spawn(function()
 		while true do
 			task.wait(0.25)
+			coverShopless()
 			if allDirty or next(dirty) ~= nil then
 				flush()
 			end

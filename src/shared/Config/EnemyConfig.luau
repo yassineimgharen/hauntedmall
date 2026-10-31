@@ -177,6 +177,7 @@ local EnemyConfig = {
 	},
 
 	AIThinkInterval = 0.2,
+	SpawnClearance = 12, -- monsters don't appear closer than this to a player
 
 	Flashlight = {
 		Range = 42,

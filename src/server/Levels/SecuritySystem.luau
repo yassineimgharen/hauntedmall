@@ -640,9 +640,17 @@ local function attackLoop(myToken: {})
 			if EnemyService.AliveCount() >= 14 then
 				break
 			end
-			local base = terminal.Approaches[(i - 1) % #terminal.Approaches + 1]
-			local position = base + Vector3.new(rng:NextNumber(-3, 3), 0, rng:NextNumber(-3, 3))
-			local enemy = EnemyService.Spawn("ShadowCrawler", position, TIER)
+			-- from this approach, or the other if someone's standing there; never on a player
+			local position = nil
+			for offset = 0, #terminal.Approaches - 1 do
+				local base = terminal.Approaches[(i - 1 + offset) % #terminal.Approaches + 1]
+				local spot = base + Vector3.new(rng:NextNumber(-3, 3), 0, rng:NextNumber(-3, 3))
+				if not EnemyService.PlayerNear(spot) then
+					position = spot
+					break
+				end
+			end
+			local enemy = position and EnemyService.Spawn("ShadowCrawler", position, TIER)
 			if enemy then
 				enemy.Goal = goalFor(terminal)
 				table.insert(wave, enemy)

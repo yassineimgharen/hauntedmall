@@ -26,6 +26,32 @@ To test **saving**, publish the place once (File → Publish to Roblox, kept pri
 
 To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
 
+## §QA: Full QA pass: test this first
+
+Automated results and what they do and don't prove: `docs/qa/QA_REPORT.md`. None of it ran in Roblox, so these are what only you can check.
+
+**1. Run the engine harness (about 20 minutes, or a few for two levels).** Steps are in `docs/qa/STUDIO_HARNESS.md`. Short version:
+
+```powershell
+git pull
+rojo build qa.project.json -o NightShiftQA.rbxl
+```
+
+Open it, leave API access off, press Play, and send me the `[QA]` lines.
+
+**2. By hand, in the normal place, with `MissionTest_Level` set on Workspace:**
+
+- [ ] **L12:** walk down the basement ramp into the maze (it was sealed before). Stand on a red line as walls rise: you should be pushed out, not trapped.
+- [ ] **L06 night, solo:** does it feel hard but fair now that hunts send one crawler? Rescue 3 and stand in the ring at dawn: the level clears.
+- [ ] **L06 evacuation:** die in the last 30 s and stay at the spawn: a message tells you to head out, and you get no escape credit. Walk 30 studs out and back: you do.
+- [ ] **L07 and L14 with 2 or more players:** one leaves mid-fight. About 10 s later the boss's health bar number drops but its percentage doesn't move. Rejoin: it goes back up.
+- [ ] **L13 night:** the arrow goes to a switch where there's gas. **L05 night:** the arrow goes to music boxes.
+- [ ] **L01 with 7 or more players, if you can (Test → Start):** the extras get the "shop tasks are covered" message.
+
+**3. Profile:** the steps are in `docs/qa/STUDIO_HARNESS.md`. L09 night, L06 night and both bosses first.
+
+**Running the automated tests:** `scripts/check.sh` runs everything (about 15 minutes); `scripts/check.sh --fast` skips the long simulations. Then `.tools/bin/lune run scripts/qa-report.luau` rewrites `docs/qa/`.
+
 ## §L10: Level 10 fixes (Special Delivery / Return to Sender): test this first
 
 Setup: Workspace `MissionTest_Level` = `L10` (string) before Play, no `FastPhases`. Don't use `MissionTest_CompleteStage` if you want to test real completion. Studio saving is off (`StudioAccessToApisNotAllowed` in Output is expected, and the HUD says "saving is off"): leave API access off. Progress lasts for that Play session, so test Level 11 unlocking and replays within one session.

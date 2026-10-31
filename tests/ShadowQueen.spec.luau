@@ -362,6 +362,58 @@ test("the level records every event its objectives need", function()
 	assert(source:find('MissionEvents.record(nil, "QueenDefeated")', 1, true), "victory is a team event")
 end)
 
+-- ── boss health when the team changes ──────────────────────────────────────
+
+local Scaling = require("../src/server/Levels/BossScaling")
+local Chef = require("../src/server/Levels/ChefLogic")
+
+test("boss scaling: joins apply at once, leaves after the delay, returning cancels it", function()
+	local t = Scaling.new(4)
+	eq(Scaling.decide(t, 4, 0), nil, "no change")
+	eq(Scaling.decide(t, 1, 1), nil, "a leave waits")
+	eq(Scaling.decide(t, 1, 5), nil, "still waiting")
+	eq(Scaling.decide(t, 4, 6), nil, "came back: nothing happened")
+	eq(Scaling.decide(t, 1, 7), nil, "left again: a fresh wait")
+	eq(Scaling.decide(t, 1, 7 + Scaling.Tuning.LeaveDelay - 1), nil, "not yet")
+	eq(Scaling.decide(t, 1, 7 + Scaling.Tuning.LeaveDelay), 1, "applied")
+	eq(Scaling.decide(t, 3, 30), 3, "a join applies at once")
+	eq(Scaling.decide(t, 0, 31), nil, "an empty server counts as one, after the delay")
+	eq(Scaling.decide(t, 0, 31 + Scaling.Tuning.LeaveDelay), 1, "one")
+end)
+
+test("boss scaling: rescaling keeps the health fraction, so phases can't move and nothing is healed", function()
+	for _, logic in { Q, Chef } do
+		local fight = { Hp = logic.maxHp(4) * 0.5, MaxHp = logic.maxHp(4), Defeated = false }
+		eq(Scaling.rescale(fight, logic.maxHp(1)), true, "changed")
+		eq(fight.MaxHp, logic.maxHp(1), "new max")
+		eq(math.abs(fight.Hp / fight.MaxHp - 0.5) < 1e-9, true, "same fraction")
+		eq(Scaling.rescale(fight, logic.maxHp(1)), false, "no change")
+		fight.Defeated = true
+		eq(Scaling.rescale(fight, logic.maxHp(4)), false, "a dead boss stays dead")
+	end
+end)
+
+test("boss scaling: leaving and rejoining any number of times never lowers the fraction left", function()
+	for _, logic in { Q, Chef } do
+		local fight = { Hp = logic.maxHp(3) * 0.8, MaxHp = logic.maxHp(3), Defeated = false }
+		for i = 1, 200 do
+			Scaling.rescale(fight, logic.maxHp(1 + i % 8))
+		end
+		eq(math.abs(fight.Hp / fight.MaxHp - 0.8) < 1e-6, true, "fraction after 200 changes")
+	end
+end)
+
+test("boss scaling: sending teammates away never makes a boss quicker to kill", function()
+	-- Seconds of beam for the whole boss: every extra player must shorten it.
+	for _, logic in { Q, Chef } do
+		for players = 1, 9 do
+			local alone = logic.maxHp(players) / players
+			local withOneMore = logic.maxHp(players + 1) / (players + 1)
+			eq(withOneMore < alone, true, players .. " players vs one more")
+		end
+	end
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
 	process.exit(1)

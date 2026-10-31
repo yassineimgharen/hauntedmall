@@ -619,15 +619,28 @@ local function buildEntranceAndPlaza(parent: Instance, rng: Random)
 	local z = -HALF - WALL / 2
 	local p = Layout.Plaza
 
-	-- ground
-	Builder.part({
-		Name = "Ground",
-		Parent = parent,
-		Size = Vector3.new(700, 2, 700),
-		CFrame = CFrame.new(0, -1.15, 0),
-		Color = Color3.fromRGB(44, 74, 52),
-		Material = Enum.Material.Grass,
-	})
+	-- ground: one big plate, minus the hole the food court's basement ramp comes through
+	-- (a solid plate here would put a floor across the ramp and seal the basement)
+	local r = Layout.FoodCourt.Ramp
+	local holeMinX, holeMaxX = r.X - r.HalfWidth, r.X + r.HalfWidth
+	local holeMinZ, holeMaxZ = r.TopZ, r.TopZ + 12
+	for _, plate in
+		{
+			{ -350, holeMinX, -350, 350 },
+			{ holeMaxX, 350, -350, 350 },
+			{ holeMinX, holeMaxX, -350, holeMinZ },
+			{ holeMinX, holeMaxX, holeMaxZ, 350 },
+		}
+	do
+		Builder.part({
+			Name = "Ground",
+			Parent = parent,
+			Size = Vector3.new(plate[2] - plate[1], 2, plate[4] - plate[3]),
+			CFrame = CFrame.new((plate[1] + plate[2]) / 2, -1.15, (plate[3] + plate[4]) / 2),
+			Color = Color3.fromRGB(44, 74, 52),
+			Material = Enum.Material.Grass,
+		})
+	end
 	local plazaDepth = math.abs(p.MinZ - z)
 	Builder.part({
 		Parent = parent,

@@ -286,6 +286,28 @@ test("mirror puzzle: the solved route ends at the receiver", function()
 	eq(dir[1] .. "," .. dir[2], "0,1", "leaves north")
 end)
 
+test("BUG-03 regression: shop chores can be covered without moving other objectives", function()
+	local tracker = Logic.newTracker({
+		{ Id = "serve", Text = "", Event = "Served", Target = 3, NeedsShop = true },
+		{ Id = "serve6", Text = "", Event = "Served", Target = 6, Optional = true },
+		{ Id = "team", Text = "", Event = "BarricadeBuilt", Target = 3, Scope = "Team", Optional = true },
+		{ Id = "built", Text = "", Event = "BarricadeBuilt", NeedsShop = true },
+		{ Id = "lamp", Text = "", Event = "Upgraded" },
+	})
+	eq(Logic.coverShopChores(tracker, 1), true, "first time changes")
+	eq(Logic.coverShopChores(tracker, 1), false, "second time doesn't")
+	local rows = {}
+	for _, row in Logic.rows(tracker, 1) do
+		rows[row.Id] = row
+	end
+	eq(rows.serve.Done, true, "serve covered")
+	eq(rows.built.Done, true, "barricade covered")
+	eq(rows.serve6.Progress, 0, "bonus untouched")
+	eq(rows.team.Progress, 0, "team bonus untouched")
+	eq(rows.lamp.Done, false, "other required objectives still needed")
+	eq(Logic.requiredComplete(tracker, 1, true), false, "not the whole stage")
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then
 	process.exit(1)

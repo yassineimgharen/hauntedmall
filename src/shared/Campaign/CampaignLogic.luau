@@ -20,6 +20,7 @@ export type Objective = {
 	Optional: boolean?,
 	Hint: string?,
 	Marker: { [string]: string }?,
+	NeedsShop: boolean?, -- only someone running a shop can do it (see coverShopChores)
 }
 
 export type Row = {
@@ -131,6 +132,23 @@ function CampaignLogic.record(tracker: Tracker, key: any, event: string, amount:
 					counts[objective.Id] = math.min(current + step, goal)
 					changed = true
 				end
+			end
+		end
+	end
+	return changed
+end
+
+-- There are fewer shops than a full server has players. Someone who can't get one isn't held
+-- back: their shop chores count as covered, without moving any other objective on the same event.
+-- Returns whether anything changed.
+function CampaignLogic.coverShopChores(tracker: Tracker, key: any): boolean
+	local changed = false
+	for _, objective in tracker.Objectives do
+		if objective.NeedsShop then
+			local counts = playerCounts(tracker, key)
+			if (counts[objective.Id] or 0) < target(objective) then
+				counts[objective.Id] = target(objective)
+				changed = true
 			end
 		end
 	end

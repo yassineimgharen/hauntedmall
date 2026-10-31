@@ -51,7 +51,10 @@ local function recordsAll(level: any, file: string)
 	for _, stage in { level.Day, level.Night } do
 		for _, objective in stage.Objectives do
 			if objective.Event and objective.Event ~= "Downed" then
-				assert(source:find('"' .. objective.Event .. '"', 1, true), objective.Event .. " is never recorded in " .. file)
+				assert(
+					source:find('"' .. objective.Event .. '"', 1, true),
+					objective.Event .. " is never recorded in " .. file
+				)
 			end
 		end
 	end
@@ -75,7 +78,10 @@ test("Chapter 2 is the Haunted Food Court with the Gorging Chef", function()
 	eq(CampaignConfig.Chapters[2].Boss, "The Gorging Chef", "boss")
 	for _, level in chapter2() do
 		eq(level.Chapter, 2, level.Id .. " chapter")
-		assert(level.Night.Rules.SpawnTag == "FoodCourtSpawn" or level.Night.Rules.NoWaves, level.Id .. " spawns in the food court")
+		assert(
+			level.Night.Rules.SpawnTag == "FoodCourtSpawn" or level.Night.Rules.NoWaves,
+			level.Id .. " spawns in the food court"
+		)
 	end
 end)
 
@@ -259,7 +265,10 @@ test("L09 day: the switchboard completes the day; missing it doesn't", function(
 	local source = fs.readFile("src/server/Levels/KitchenFire.luau")
 	assert(source:find('if result == "Done" then', 1, true), "a completed pull is handled")
 	assert(source:find('MissionEvents.record(player, "SwitchboardReset")', 1, true), "and recorded")
-	assert(source:find('"Done", if on then true else nil', 1, true), "a held breaker hands the guide arrow to the other")
+	assert(
+		source:find('"Done", if on then true else nil', 1, true),
+		"a held breaker hands the guide arrow to the other"
+	)
 end)
 
 test("L09 fire grid: kitchen and hall, aligned to the kitchen wall; restaurants stay safe", function()
@@ -652,7 +661,10 @@ test("L10 mimic regressions: no pounce through walls, no hit from thin air, a re
 	assert(source:find("and ai.LineOfSight(root.Position, target.Position)", 1, true), "pounce needs a clear line")
 	assert(source:find("> T.PounceReach then", 1, true), "a short landing does no damage")
 	assert(source:find("root.Anchored = true", 1, true), "a disguised mimic doesn't physically simulate")
-	assert(source:find('Name = "Goo"', 1, true) and source:find("light.Enabled = false", 1, true), "no glow in disguise")
+	assert(
+		source:find('Name = "Goo"', 1, true) and source:find("light.Enabled = false", 1, true),
+		"no glow in disguise"
+	)
 	assert(source:find("Think = prowl", 1, true), "mites hunt players instead of raiding shops")
 	local deliveries = fs.readFile("src/server/Levels/Deliveries.luau")
 	assert(deliveries:find("ParcelMimic.decoy(", 1, true), "real parcels share the mimic's look")
@@ -723,7 +735,10 @@ local L11 = CampaignConfig.ById.L11
 local R11 = Rules.L11
 
 test("L11 day: prints, the hidden freezer and 3 logbooks clear it", function()
-	assert(play(L11.Day, { { "FrostPrintFound", 6 }, { "HiddenFreezerOpened", 1 }, { "FrozenLogRecovered", 3 } }), "cleared")
+	assert(
+		play(L11.Day, { { "FrostPrintFound", 6 }, { "HiddenFreezerOpened", 1 }, { "FrozenLogRecovered", 3 } }),
+		"cleared"
+	)
 	assert(not play(L11.Day, { { "FrostPrintFound", 6 }, { "FrozenLogRecovered", 3 } }), "freezer still sealed")
 	assert(R11.Prints > R11.PrintTarget and R11.Logs > R11.LogTarget, "spares")
 end)
@@ -754,7 +769,11 @@ test("L11 cold: the hidden freezer gives time to work; heat always wins", functi
 	assert(freezer >= R11.ChipSeconds * 2 + 8, "two logbooks per trip")
 	local warm = Rules.coldStep(1, 1, { InHeat = true, InHiddenFreezer = true, InWalkIn = false, WraithDistance = 1 })
 	eq(warm, 1 - R11.Fall.Heat, "heat lamps warm even next to the wraith")
-	eq(Rules.coldStep(0.5, 1, { InHeat = false, InHiddenFreezer = false, InWalkIn = false }), 0.5 - R11.Fall.Normal, "warms slowly elsewhere")
+	eq(
+		Rules.coldStep(0.5, 1, { InHeat = false, InHiddenFreezer = false, InWalkIn = false }),
+		0.5 - R11.Fall.Normal,
+		"warms slowly elsewhere"
+	)
 	eq(Rules.coldStep(0, 1, { InHeat = false, InHiddenFreezer = false, InWalkIn = false }), 0, "never negative")
 end)
 
@@ -1057,7 +1076,10 @@ test("chef balance: HP scales; meatballs only from phase 2 and capped", function
 	eq(Chef.meatballCap(2, 1), 2, "solo phase 2")
 	eq(Chef.meatballCap(3, 1), 3, "solo phase 3")
 	eq(Chef.meatballCap(3, 10), CT.MaxMeatballs, "cap")
-	assert(EnemyConfig.Scaled("Meatball", CT.MeatballTier[3]).WalkSpeed < MonsterTuning.PlayerSpeed, "meatballs are slower")
+	assert(
+		EnemyConfig.Scaled("Meatball", CT.MeatballTier[3]).WalkSpeed < MonsterTuning.PlayerSpeed,
+		"meatballs are slower"
+	)
 end)
 
 test("chef fairness: every attack is telegraphed long enough to dodge", function()
@@ -1100,7 +1122,10 @@ local function simulateKill(players: number, accuracy: number, prep: number): nu
 				charge[i] -= dt
 				Chef.applyLight(f, t, Chef.lightDamage(battery.DPS, dt, 0, false) * accuracy)
 			else
-				charge[i] = math.min(battery.BatterySeconds, charge[i] + battery.BatterySeconds * battery.RechargePerSecond * dt)
+				charge[i] = math.min(
+					battery.BatterySeconds,
+					charge[i] + battery.BatterySeconds * battery.RechargePerSecond * dt
+				)
 			end
 		end
 	end
@@ -1112,7 +1137,9 @@ test("chef: a solo player wins well before dawn; teams do too", function()
 	assert(solo < L14.Night.Duration * 0.6, string.format("solo kill at %.0fs", solo))
 	local team = simulateKill(4, 0.6, 0.9)
 	assert(team < L14.Night.Duration - 60, string.format("team of 4 at %.0fs", team))
-	print(string.format("      (simulated: solo %.0fs, team of 4 %.0fs of a %ds night)", solo, team, L14.Night.Duration))
+	print(
+		string.format("      (simulated: solo %.0fs, team of 4 %.0fs of a %ds night)", solo, team, L14.Night.Duration)
+	)
 end)
 
 test("Chapter 2 reward is paid once; Food Court Hero follows", function()

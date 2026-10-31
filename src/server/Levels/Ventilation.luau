@@ -35,6 +35,7 @@ local ZONE_BOXES = {
 	SouthWing = { -184, -98, -128, -48 },
 	BackRooms = { -250, -184, -96, -48 },
 }
+local PURGE_MIN_GAS = 0.1 -- a zone with less than this has nothing to purge
 local ZONE_NAMES = {
 	Kitchen = "Grand Kitchen",
 	HallWest = "Dining Hall (west)",
@@ -81,6 +82,7 @@ local token: {}? = nil
 local stage: string? = nil
 local fansFixed = 0
 local levels: { [string]: number } = {}
+local switchButtons: { [string]: BasePart } = {}
 local sources: { [string]: boolean } = {}
 local purgedUntil: { [string]: number } = {}
 local fog: { [string]: ParticleEmitter } = {}
@@ -377,6 +379,13 @@ local function buildVent(parent: Instance, zone: string)
 	Notify.all(string.format("☣️ A spore vent burst open in the %s!", ZONE_NAMES[zone]), "danger")
 end
 
+-- The guide arrow prefers switches with something to purge (Marker.Prefer = "Gassy").
+local function markGassySwitches()
+	for zone, button in switchButtons do
+		button:SetAttribute("Gassy", if (levels[zone] or 0) >= PURGE_MIN_GAS then true else nil)
+	end
+end
+
 local function buildSwitches(parent: Instance, myToken: {})
 	for zone, cf in SWITCHES do
 		local model = Builder.model("PurgeSwitch", parent)
@@ -396,6 +405,7 @@ local function buildSwitches(parent: Instance, myToken: {})
 			Material = Enum.Material.Neon,
 			Tags = { "PurgeSwitch" },
 		})
+		switchButtons[zone] = button
 		local label = Builder.decor({
 			Parent = model,
 			Size = Vector3.new(3, 0.9, 0.1),
@@ -418,7 +428,7 @@ local function buildSwitches(parent: Instance, myToken: {})
 				Notify.player(player, "🌀 This zone is already being purged.", "info")
 				return
 			end
-			if (levels[zone] or 0) < 0.1 then
+			if (levels[zone] or 0) < PURGE_MIN_GAS then
 				Notify.player(player, "This zone's air is still clean: purge where the gas is!", "info")
 				return
 			end
@@ -514,12 +524,16 @@ local function spawnBloater()
 	if #open == 0 then
 		return
 	end
-	local zone = open[rng:NextInteger(1, #open)]
-	local enemy = EnemyService.Spawn(
-		"SporeBloater",
-		VENTS[zone] + Vector3.new(rng:NextNumber(-4, 4), 0, rng:NextNumber(-4, 4)),
-		R.Tier
-	)
+	-- out of a random open vent with nobody at it (else it waits for the next round)
+	local spot = nil
+	while #open > 0 and not spot do
+		local zone = table.remove(open, rng:NextInteger(1, #open)) :: string
+		local candidate = VENTS[zone] + Vector3.new(rng:NextNumber(-4, 4), 0, rng:NextNumber(-4, 4))
+		if not EnemyService.PlayerNear(candidate) then
+			spot = candidate
+		end
+	end
+	local enemy = spot and EnemyService.Spawn("SporeBloater", spot, R.Tier)
 	if not enemy then
 		return
 	end
@@ -597,6 +611,7 @@ local function runNight(myToken: {})
 			end
 		end
 		step(now - last)
+		markGassySwitches()
 		last = now
 	end
 end
@@ -616,6 +631,7 @@ local function clearNight()
 	end
 	table.clear(breath)
 	table.clear(levels)
+	table.clear(switchButtons)
 	table.clear(sources)
 	table.clear(purgedUntil)
 	table.clear(fog)

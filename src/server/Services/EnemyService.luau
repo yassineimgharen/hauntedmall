@@ -182,9 +182,12 @@ local function navigate(enemy: Enemy, goal: Vector3)
 		return
 	end
 
-	local stale = os.clock() - enemy.PathAt > 3
+	-- no path yet (or the last one failed, or was used up): try again, but at most once a
+	-- second, not on every AI tick; an unreachable goal must not spam the pathfinder
+	local age = os.clock() - enemy.PathAt
+	local stale = age > 3
 	local moved = enemy.PathGoal == nil or (enemy.PathGoal - goal).Magnitude > 10
-	if (stale or moved or not enemy.Path) and not enemy.Computing then
+	if (stale or moved or (not enemy.Path and age > 1)) and not enemy.Computing then
 		computePath(enemy, goal)
 	end
 
@@ -414,6 +417,12 @@ local function remove(enemy: Enemy)
 			enemy.Model:Destroy()
 		end)
 	end
+end
+
+-- Is a living player too close for a monster to appear here? (Levels pick another spot.)
+function EnemyService.PlayerNear(position: Vector3, range: number?): boolean
+	local player = nearestPlayer(position, range or EnemyConfig.SpawnClearance, false)
+	return player ~= nil
 end
 
 -- night (1 = first) scales speed, damage, health and detection (EnemyConfig.Scaled).

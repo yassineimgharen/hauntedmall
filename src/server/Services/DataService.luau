@@ -118,11 +118,13 @@ local MIGRATIONS: { [number]: (data: { [string]: any }) -> () } = {
 	end,
 }
 
+-- Fills in what's missing and replaces what's the wrong type (a damaged field would otherwise
+-- break every service that reads it). Fields that aren't in the template are left alone.
 local function reconcile(data: { [string]: any }, template: { [string]: any })
 	for key, value in template do
-		if data[key] == nil then
+		if type(data[key]) ~= type(value) then
 			data[key] = deepCopy(value)
-		elseif type(value) == "table" and type(data[key]) == "table" then
+		elseif type(value) == "table" then
 			reconcile(data[key], value)
 		end
 	end

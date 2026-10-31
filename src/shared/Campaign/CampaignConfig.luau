@@ -191,12 +191,14 @@ local levels: { any } = {
 					Id = "claim",
 					Text = "Claim a shop in the East Wing",
 					Event = "ShopClaimed",
+					NeedsShop = true,
 					Hint = "Follow the marker to a FOR LEASE stand and press E.",
 				},
 				{
 					Id = "stock",
 					Text = "Order stock at your 📦 crates",
 					Event = "Restocked",
+					NeedsShop = true,
 					Hint = "The crates are in your shop's back corner. Press E.",
 				},
 				{
@@ -204,6 +206,7 @@ local levels: { any } = {
 					Text = "Serve customers at the register",
 					Event = "Served",
 					Target = 3,
+					NeedsShop = true,
 					Hint = "When a 💬 customer waits at your till, press E.",
 				},
 				{
@@ -510,6 +513,7 @@ local levels: { any } = {
 					Id = "barricade",
 					Text = "Barricade your shop entrance",
 					Event = "BarricadeBuilt",
+					NeedsShop = true,
 					Hint = "Grab planks at the hardware depot and build at your own shop door (claim a shop first).",
 					Marker = {
 						Tag = "BarricadeSpot",
@@ -629,6 +633,7 @@ local levels: { any } = {
 					Target = 4,
 					Scope = "Team",
 					Hint = "Sneak (Ctrl / C or 🤫) to stay quiet. Hold E on a box. Hide in a locker if it hunts you.",
+					Marker = { Tag = "MusicBox", Label = "🎵 SILENCE MUSIC BOX" },
 				},
 				{ Id = "caught", Text = "Times caught", Kind = "Avoid", Event = "Caught", Allow = 2, Scope = "Team" },
 				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
@@ -728,7 +733,7 @@ local levels: { any } = {
 					Id = "escape",
 					Text = "Be at the exit when the van leaves",
 					Event = "Escaped",
-					Hint = "In the last 30 s, get inside the EVAC ring yourself.",
+					Hint = "In the last 30 s, get inside the EVAC ring yourself. It only counts if you've been out in the mall since you last spawned.",
 				},
 				{
 					Id = "all4",
@@ -1296,7 +1301,7 @@ local levels: { any } = {
 					Target = 8,
 					Scope = "Team",
 					Hint = "Each zone has a yellow PURGE switch (hold E). Purged air stays clean for 30 s, then the gas creeps back.",
-					Marker = { Tag = "PurgeSwitch", Label = "🌀 PURGE GAS" },
+					Marker = { Tag = "PurgeSwitch", Label = "🌀 PURGE GAS", Prefer = "Gassy" },
 				},
 				{ Id = "survive", Text = "Survive until dawn", Kind = "Survive" },
 				{

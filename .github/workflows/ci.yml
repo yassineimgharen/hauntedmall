@@ -1,0 +1,32 @@
+# Format, lint, types, unit tests, simulated gameplay and a Rojo build. Needs no Roblox Studio.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore tools
+        id: tools
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh') }}
+      - name: Install tools
+        if: steps.tools.outputs.cache-hit != 'true'
+        run: scripts/install-tools.sh
+      - name: All checks (format, lint, types, tests, simulations, Rojo build)
+        run: scripts/check.sh
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-results
+          path: build/qa/
+          if-no-files-found: ignore

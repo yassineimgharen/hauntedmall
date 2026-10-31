@@ -1,8 +1,27 @@
 # Status Report
 
-_Last updated: 2026-10-28._
+_Last updated: 2026-10-31._
 
-## Current: Level 10 fixes (Special Delivery / Return to Sender)
+## Current: full QA pass, automated playtesting and bug fixes
+
+**Studio verification: not done.** Everything below ran in Lune, on the real server code in a fake engine. Full report: `docs/qa/QA_REPORT.md`. Results: `docs/qa/RESULTS.md`. One report per level: `docs/qa/levels/`. Your Studio checklist: `docs/TESTING.md` §QA.
+
+**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **700 tests: 700 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`): 28 passed, 0 failed.
+
+**Fixed:**
+- **L12 was impossible:** the ground plate sealed the basement ramp.
+- **7 or more players couldn't clear L01 or L04:** there are 6 shops and 10 player slots. Shop tasks are now covered once every shop is taken.
+- **Damaged save fields** could break services; they're now repaired, keeping the good ones.
+- **L06:** dying or idling at the entrance earned evacuation; solo was far harder than any other level, so hunts send 1 crawler at a solo player (teams unchanged). These numbers are from bots, so please judge the feel.
+- **Bosses:** health follows who's still there, keeping its percentage, with no leave-and-rejoin profit.
+- **Monsters spawning on players:** L04, L06, L10, L11, L12 and L13.
+- **Smaller:** a pathfinder request limit for monsters with no route, and guide arrows for L05's music boxes and L13's purge switches.
+
+**New tooling:** `tests/harness/` (fake engine, bots), seven new spec suites, `tools/studio/NightShiftQA.server.luau` (not run yet: needs your laptop), `.github/workflows/ci.yml`, and `scripts/qa-report.luau`.
+
+**Not changed, worth a look:** the Newcomer bot's low clear rates on L14 and L13, and the performance risks listed in the report. No performance numbers exist yet.
+
+## Previous: Level 10 fixes (Special Delivery / Return to Sender)
 Static checks ✅ · unit tests 136/136 ✅ (79 Chapter 2, 21 Shadow Queen, 19 campaign, 17 receipts) · Rojo build ✅ · **Studio verification pending** (`TESTING.md` §L10).
 
 **Confirmed from the code (no Studio run):**

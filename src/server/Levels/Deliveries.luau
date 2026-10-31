@@ -643,7 +643,9 @@ local function runNests(nests: { Nest }, myToken: {})
 		for _, nest in nests do
 			if not nest.Done then
 				left += 1
-				if now >= nest.NextHatch then
+				if now >= nest.NextHatch and EnemyService.PlayerNear(nest.Hatch) then
+					nest.NextHatch = now + 3 -- not on top of someone: it hatches once they've moved
+				elseif now >= nest.NextHatch then
 					nest.NextHatch = now + R.NestEvery
 					if creatures(true) < cap and spawnMimic(nest.Hatch, false) then
 						Notify.all("📦 A Parcel Mimic hatched from an infected nest!", "warning")

@@ -31,6 +31,7 @@ local Notify = require(script.Parent.Parent.Util.Notify)
 local Telegraph = require(script.Parent.Parent.Util.Telegraph)
 local Builder = require(script.Parent.Parent.World.Builder)
 local Carry = require(script.Parent.Carry)
+local BossScaling = require(script.Parent.BossScaling)
 local ChefLogic = require(script.Parent.ChefLogic)
 local FoodCourtRules = require(script.Parent.FoodCourtRules)
 
@@ -1236,6 +1237,19 @@ local function clampArena(p: Vector3): Vector3
 	return Vector3.new(math.clamp(p.X, ARENA.MinX, ARENA.MaxX), 0, math.clamp(p.Z, ARENA.MinZ, ARENA.MaxZ))
 end
 
+-- His health follows who's still here (BossScaling keeps the fraction: nothing to gain by leaving).
+local function runHpScaling(myToken: {}, players: number)
+	local tracker = BossScaling.new(players)
+	while nightToken == myToken do
+		task.wait(1)
+		local f = fight
+		local count = BossScaling.decide(tracker, #Players:GetPlayers(), os.clock())
+		if f and count and BossScaling.rescale(f, ChefLogic.maxHp(count)) then
+			publish()
+		end
+	end
+end
+
 local function runBrain(myToken: {})
 	local f = fight :: ChefLogic.Fight
 	local nextAttack = os.clock() + T.FirstAttackDelay
@@ -1434,6 +1448,7 @@ function GorgingChef.StartNight()
 		end
 	end
 	fight = newFight
+	task.spawn(runHpScaling, myToken, players)
 	local model, root, weakpoints, radii = buildChef(folder, CFrame.lookAt(HOME, HOME + facing))
 	chef, chefRoot = model, root
 	buildStations(folder, myToken)

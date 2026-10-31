@@ -30,6 +30,7 @@ local MissionEvents = require(script.Parent.Parent.Util.MissionEvents)
 local Notify = require(script.Parent.Parent.Util.Notify)
 local Builder = require(script.Parent.Parent.World.Builder)
 local MirrorGrid = require(script.Parent.MirrorGrid)
+local BossScaling = require(script.Parent.BossScaling)
 local QueenLogic = require(script.Parent.QueenLogic)
 
 local ShadowQueen = {}
@@ -1270,6 +1271,19 @@ local function defeat(model: Model)
 	end)
 end
 
+-- Her health follows who's still here (BossScaling keeps the fraction: nothing to gain by leaving).
+local function runHpScaling(myToken: {}, players: number)
+	local tracker = BossScaling.new(players)
+	while nightToken == myToken do
+		task.wait(1)
+		local f = fight
+		local count = BossScaling.decide(tracker, #Players:GetPlayers(), os.clock())
+		if f and count and BossScaling.rescale(f, QueenLogic.maxHp(count)) then
+			publishBoss()
+		end
+	end
+end
+
 -- Every beam tick from CombatService while a player's light touches one of her weak
 -- points (it already checked the cone and line of sight). Server-authoritative.
 local function onLit(player: Player, dt: number, part: BasePart)
@@ -1370,7 +1384,8 @@ local function runQueen(myToken: {})
 	end
 	local model, root, weakpoints, radii = buildQueen(parent)
 	queen, queenRoot = model, root
-	local f = QueenLogic.new(activePlayers())
+	local players = activePlayers()
+	local f = QueenLogic.new(players)
 	if RunService:IsStudio() then
 		-- Studio helper: Workspace.QueenTest_Phase = 2 or 3 starts her just past that threshold
 		local testPhase = workspace:GetAttribute("QueenTest_Phase")
@@ -1394,6 +1409,7 @@ local function runQueen(myToken: {})
 	)
 	startMotion(myToken, model, root)
 	task.spawn(runBrood, myToken)
+	task.spawn(runHpScaling, myToken, players)
 	runAttacks(myToken)
 end
 
