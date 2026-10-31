@@ -1698,6 +1698,9 @@ function Engine.new(options: Options?): any
 	end
 	local RunServiceInst = service("RunService")
 	local studio = opts.Studio ~= false
+	function Methods.IsRunMode(_self: any): boolean
+		return false
+	end
 	function Methods.IsStudio(_self: any): boolean
 		return studio
 	end
@@ -2284,18 +2287,25 @@ function Engine.new(options: Options?): any
 			and PlayersService:GetPlayerFromCharacter(model) ~= nil
 	end
 
+	local conveyors: { any }? = nil
 	local function conveyorUnder(feet: any): any
-		for _, part in Workspace:GetDescendants() do
-			if part:IsA("BasePart") and part._p.Anchored and get(part, "AssemblyLinearVelocity").Magnitude > 1 then
-				local size = get(part, "Size")
-				local here = get(part, "CFrame"):PointToObjectSpace(feet)
-				if
-					math.abs(here.X) <= size.X / 2
-					and math.abs(here.Z) <= size.Z / 2
-					and math.abs(here.Y - size.Y / 2) <= 1
-				then
-					return part
+		if not conveyors then
+			conveyors = {}
+			for _, part in Workspace:GetDescendants() do
+				if part:IsA("BasePart") and part._p.Anchored and get(part, "AssemblyLinearVelocity").Magnitude > 1 then
+					table.insert(conveyors :: any, part)
 				end
+			end
+		end
+		for _, part in conveyors :: any do
+			local size = get(part, "Size")
+			local here = get(part, "CFrame"):PointToObjectSpace(feet)
+			if
+				math.abs(here.X) <= size.X / 2
+				and math.abs(here.Z) <= size.Z / 2
+				and math.abs(here.Y - size.Y / 2) <= 1
+			then
+				return part
 			end
 		end
 		return nil

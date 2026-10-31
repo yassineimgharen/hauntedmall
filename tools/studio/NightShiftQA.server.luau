@@ -3,37 +3,51 @@
 -- Lune simulation (tests/) can't. It is NOT part of the game: only qa.project.json includes it.
 --
 -- How to run (see docs/qa/STUDIO_HARNESS.md):
---   rojo build qa.project.json -o NightShiftQA.rbxl   then open it in Studio and press Play (F5).
--- Workspace attributes, all optional, set before pressing Play:
---   QA_Levels = "L01,L12"   only these levels (default: all of them; about 20 minutes)
---   QA_Walk   = 3           prompts per stage a real character walks to (default 3; 0 = none)
---   QA_EscalatorsOnly = true  only the one-off checks, including the escalator rides (about 3 minutes)
---   QA_From   = "L08"       resume: start at this level and skip the escalator rides
+--   rojo build qa.project.json -o NightShiftQA.rbxl   then open it in Studio.
+--   Run (F8): no player and no client, so nothing can freeze or disconnect. Every level's routes,
+--     spawn points and collisions, walked by a rider the server simulates.
+--   Play (F5): a real player. Adds what needs one: monsters, bosses, a client's physics.
+-- Workspace attributes, all optional, set before pressing Run or Play:
+--   QA_Batch  = 3           levels two at a time: 1 = L01,L02 ... 7 = L13,L14
+--   QA_Levels = "L01,L12"   only these levels (default: all of them)
+--   QA_From   = "L08"       resume: start at this level
+--   QA_Stage  = "Night"     only this stage of each level
+--   QA_Walk   = 3           prompts per stage a character walks to (default 3; 0 = none)
+--   QA_EscalatorsOnly = true  only the one-off checks, including the escalator rides
 --   QA_Riders = 2           wait for this many players, and ride together (Test → Clients and Servers)
---   QA_StageLimit = 420     seconds one stage of one level may take before it's given up on
--- Results: lines starting [QA] in the Output window, and a summary at the end. The first line gives
--- HARNESS_VERSION: if it isn't the number in docs/qa/STUDIO_HARNESS.md, an old place file is open.
+--   QA_SessionLimit = 900   Play only: stop cleanly between levels after this many seconds (0 = never)
+--   QA_StageLimit = 420     seconds one stage of one level may take in all
+-- Results: lines starting [QA] in the Output window, as they happen, so a run that dies keeps them;
+-- a coverage table at the end. The first line gives HARNESS_VERSION: if it isn't the number in
+-- docs/qa/STUDIO_HARNESS.md, an old place file is open.
 --
 -- Safety: only runs in Studio; refuses to run if a real DataStore is connected, so it can't touch
--- saved data; never fires purchases, and never changes settings outside this Play session.
+-- saved data; never fires purchases, and never changes settings outside this session.
 
 local CollectionService = game:GetService("CollectionService")
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 if not RunService:IsStudio() then
 	return
 end
 
-local HARNESS_VERSION = 3
+local HARNESS_VERSION = 4
 local STAGE_LIMIT = 420
+local SESSION_LIMIT = 900 -- under Roblox's 20-minute idle disconnect
+local PROMPTS_LIMIT = 240
+local CHECK_LIMIT = 60
+local WALK_STEP_LIMIT = 200 -- three tries
 local RESPAWN_LIMIT = 30 -- a character that doesn't come back after this long is a stuck run
+local CLIENT_SILENT = 45 -- the helper script reports every 15 s
 local PLAYER_LEFT = "QA_PLAYER_LEFT"
 local CHARACTER_GONE = "QA_CHARACTER_GONE"
 
-local passed, failed, inconclusive = 0, 0, 0
+local serverMode = false -- Run (F8): no players, no client
+local passed, failed, inconclusive, skipped = 0, 0, 0, 0
 local failures: { string } = {}
 local unclear: { string } = {}
 local finished = false
@@ -41,30 +55,65 @@ local startedAt = os.clock()
 local currentLevel: string? = nil
 local currentStep = "starting"
 
+-- What happened to each stage ("L05 Night"), for the coverage table at the end.
+type StageLog = { Pass: number, Fail: number, Inconclusive: number, Skipped: number, Complete: boolean }
+local stageLogs: { [string]: StageLog } = {}
+
+local function stageLog(key: string): StageLog
+	local log = stageLogs[key]
+	if not log then
+		log = { Pass = 0, Fail = 0, Inconclusive = 0, Skipped = 0, Complete = false }
+		stageLogs[key] = log
+	end
+	return log
+end
+
+local function logFor(name: string): StageLog
+	return stageLog(name:match("^(L%d+ %a+):") or "General")
+end
+
+-- One line per result, "[QA] STATUS name :: detail", printed at once. scripts/qa-studio-report.luau
+-- merges these lines from any number of sessions.
+local function resultLine(status: string, name: string, detail: string?): string
+	return string.format("[QA] %s %s%s", status, name, if detail and detail ~= "" then " :: " .. detail else "")
+end
+
 local function report(ok: boolean, name: string, detail: string?)
 	if finished then
 		return
 	end
+	local log = logFor(name)
 	if ok then
 		passed += 1
-		print(string.format("[QA] PASS %s%s", name, if detail then " (" .. detail .. ")" else ""))
+		log.Pass += 1
+		print(resultLine("PASS", name, detail))
 	else
 		failed += 1
-		local line = string.format("%s%s", name, if detail then ": " .. detail else "")
-		table.insert(failures, line)
-		warn("[QA] FAIL " .. line)
+		log.Fail += 1
+		table.insert(failures, string.format("%s%s", name, if detail then ": " .. detail else ""))
+		warn(resultLine("FAIL", name, detail))
 	end
 end
 
--- For a result that says nothing either way: neither a pass nor a game bug.
+-- Measured nothing either way: neither a pass nor a game bug.
 local function reportUnclear(name: string, detail: string)
 	if finished then
 		return
 	end
 	inconclusive += 1
-	local line = name .. ": " .. detail
-	table.insert(unclear, line)
-	warn("[QA] INCONCLUSIVE " .. line)
+	logFor(name).Inconclusive += 1
+	table.insert(unclear, name .. ": " .. detail)
+	warn(resultLine("INCONCLUSIVE", name, detail))
+end
+
+-- Not attempted, because this mode can't. Never counted as a pass.
+local function reportSkipped(name: string, detail: string)
+	if finished then
+		return
+	end
+	skipped += 1
+	logFor(name).Skipped += 1
+	print(resultLine("SKIPPED", name, detail))
 end
 
 -- A checked box is true; someone may also have typed the word into a string attribute.
@@ -181,8 +230,8 @@ end
 -- Things legitimately out of reach when a stage starts (the same list as tests/World.spec.luau).
 local LOCKED = { L11Day = { ["Chip the Ice"] = true } }
 
-local function checkPrompts(prefix: string, player: Player, key: string): { ProximityPrompt }
-	local model, _, root = waitAlive(player)
+local function checkPrompts(prefix: string, rider: any, key: string): { ProximityPrompt }
+	local model, _, root = rider.Get()
 	local reachable = {}
 	local prompts = enabledPrompts()
 	local bad, sightBad = {}, {}
@@ -304,13 +353,8 @@ local WALK_LIMIT = 60
 local WAYPOINT_LIMIT = 8
 
 -- One try. Returns whether it arrived, whether something outside the route spoiled the try, and why.
-local function walkOnce(
-	player: Player,
-	stage: string,
-	prompt: ProximityPrompt,
-	point: Vector3
-): (boolean, boolean, string)
-	local model, humanoid, walker = waitAlive(player)
+local function walkOnce(rider: any, stage: string, prompt: ProximityPrompt, point: Vector3): (boolean, boolean, string)
+	local model, humanoid, walker = rider.Get()
 	-- this checks the route, not the fight: monsters shouldn't decide it, so damage is off while walking
 	local shield = Instance.new("ForceField")
 	shield.Visible = false
@@ -333,7 +377,7 @@ local function walkOnce(
 		local waypointDeadline = os.clock() + WAYPOINT_LIMIT
 		while os.clock() < waypointDeadline and (walker.Position - waypoint.Position).Magnitude > 5 do
 			task.wait(0.1)
-			if player.Character ~= model or humanoid.Health <= 0 then
+			if model.Parent == nil or humanoid.Health <= 0 then
 				return false, true, string.format("the character died at waypoint %d of %d", i, #waypoints)
 			end
 			if phase() ~= stage then
@@ -372,38 +416,66 @@ local function walkOnce(
 		)
 end
 
+local step: (string, number, () -> ()) -> boolean -- defined below, with the run
+
 -- A real character really walks there: collisions, doors, stairs, ramps. A try spoiled by a monster
 -- or a death is tried again; if every try is spoiled the route wasn't tested, which isn't a failure.
-local function checkWalks(prefix: string, player: Player, stage: string, prompts: { ProximityPrompt }, count: number)
+-- This level's own prompts come first. The mall's fixtures are walked once per level: they're the
+-- same in both stages, and every prompt's route is still checked in every stage.
+local function checkWalks(
+	prefix: string,
+	rider: any,
+	stage: string,
+	prompts: { ProximityPrompt },
+	count: number,
+	walkedInLevel: { [string]: boolean }
+)
 	if count <= 0 or #prompts == 0 or workspace:GetAttribute("QA_NoPhysics") then
 		return
 	end
-	local _, _, root = waitAlive(player)
+	local _, _, root = rider.Get()
 	local entries = {}
 	for _, prompt in prompts do
 		local point = promptPoint(prompt)
-		if point then
-			table.insert(entries, { Prompt = prompt, Point = point, Distance = (point - root.Position).Magnitude })
+		local fullName = prompt:GetFullName()
+		local fixture = fullName:find("^Workspace%.Mall%.") ~= nil
+		if point and not (fixture and walkedInLevel[fullName]) then
+			table.insert(entries, {
+				Prompt = prompt,
+				Point = point,
+				FullName = fullName,
+				Fixture = fixture,
+				Distance = (point - root.Position).Magnitude,
+			})
 		end
 	end
 	table.sort(entries, function(a, b)
+		if a.Fixture ~= b.Fixture then
+			return b.Fixture
+		end
 		return a.Distance > b.Distance
 	end)
 	for i = 1, math.min(count, #entries) do
 		local entry = entries[i]
 		local name = string.format("%s a character walks to %q", prefix, entry.Prompt.ActionText)
-		local arrived, spoiled, detail = false, false, ""
-		for attempt = 1, 3 do
-			currentStep = string.format("%s, try %d", name, attempt)
-			arrived, spoiled, detail = walkOnce(player, stage, entry.Prompt, entry.Point)
-			if arrived or phase() ~= stage then
-				break
+		walkedInLevel[entry.FullName] = true
+		local alive = step(name, WALK_STEP_LIMIT, function()
+			local arrived, spoiled, detail = false, false, ""
+			for attempt = 1, 3 do
+				currentStep = string.format("%s, try %d", name, attempt)
+				arrived, spoiled, detail = walkOnce(rider, stage, entry.Prompt, entry.Point)
+				if arrived or phase() ~= stage then
+					break
+				end
 			end
-		end
-		if spoiled and not arrived then
-			reportUnclear(name, detail)
-		else
-			report(arrived, name, detail)
+			if spoiled and not arrived then
+				reportUnclear(name, detail)
+			else
+				report(arrived, name, entry.FullName .. ": " .. detail)
+			end
+		end)
+		if not alive then
+			return
 		end
 	end
 end
@@ -460,14 +532,24 @@ local function checkLevelSpecific(id: string, stage: string, prefix: string)
 		return
 	end
 	if id == "L14" or id == "L07" then
-		task.wait(12) -- the intro
 		local arenaName, modelName = "ChefArena", "GorgingChef"
 		if id == "L07" then
 			arenaName, modelName = "QueenArena", "ShadowQueen"
 		end
-		local arena = workspace:FindFirstChild(arenaName, true)
-		local boss = arena and arena:FindFirstChild(modelName, true)
-		report(boss ~= nil, prefix .. " the boss exists")
+		local boss = nil
+		local introEnds = os.clock() + 12 -- at most the intro
+		while not boss and os.clock() < introEnds do
+			local arena = workspace:FindFirstChild(arenaName, true)
+			boss = arena and arena:FindFirstChild(modelName, true)
+			if not boss then
+				task.wait(0.5)
+			end
+		end
+		if boss or not serverMode then
+			report(boss ~= nil, prefix .. " the boss exists")
+		else
+			reportSkipped(prefix .. " the boss exists", "needs a player: use Play")
+		end
 		if boss then
 			local count = 0
 			for _, part in boss:GetDescendants() do
@@ -501,37 +583,45 @@ local function checkLevelSpecific(id: string, stage: string, prefix: string)
 	end
 end
 
+-- Stops looking as soon as something has moved: one mover answers the question.
 local function checkMovers(prefix: string, seconds: number)
 	-- monsters and shoppers really walk under the real Humanoid
-	local function rootsIn(): { [BasePart]: Vector3 }
-		local out = {}
-		for _, model in workspace:GetDescendants() do
-			if model:IsA("Humanoid") and model.Parent and not Players:GetPlayerFromCharacter(model.Parent) then
-				local root = model.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if root then
-					out[root] = root.Position
+	local before = {}
+	for _, model in workspace:GetDescendants() do
+		if
+			model:IsA("Humanoid")
+			and model.Parent
+			and not Players:GetPlayerFromCharacter(model.Parent)
+			and not model.Parent:GetAttribute("QA_Rider")
+		then
+			local root = model.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root then
+				before[root] = root.Position
+			end
+		end
+	end
+	local total, moved = 0, 0
+	local started = os.clock()
+	repeat
+		task.wait(1)
+		total, moved = 0, 0
+		for root, position in before do
+			if root.Parent then
+				total += 1
+				if (root.Position - position).Magnitude > 2 then
+					moved += 1
 				end
 			end
 		end
-		return out
-	end
-	local before = rootsIn()
-	task.wait(seconds)
-	local total, moved = 0, 0
-	for root, position in before do
-		if root.Parent then
-			total += 1
-			if (root.Position - position).Magnitude > 2 then
-				moved += 1
-			end
-		end
-	end
+	until moved > 0 or total == 0 or os.clock() - started >= seconds
 	if total > 0 then
 		report(
 			moved > 0,
 			prefix .. " NPCs and monsters move on their own",
-			string.format("%d of %d moved in %d s", moved, total, seconds)
+			string.format("%d of %d moved in %.0f s", moved, total, os.clock() - started)
 		)
+	elseif serverMode then
+		reportSkipped(prefix .. " NPCs and monsters move on their own", "none appear without a player: use Play")
 	end
 end
 
@@ -697,30 +787,40 @@ local function rideTogether(
 end
 
 -- A rider the server simulates itself, so no client is involved: nothing can be "still loading", and
--- what it does is Roblox's physics acting on the belt directly. Built like the game's monsters.
-local function serverRider(): (Rider, Model)
+-- what it does is Roblox's physics acting on the world directly. It uses the game's own Rig module,
+-- as monsters do: a Humanoid set up by hand here once defaulted to R6, which can't stand without leg
+-- parts, so it lay on its body block and slid. Sized like a player, and in the players' collision
+-- group, so it fits and collides as a player does.
+local function serverRider(): (any, Model)
+	local Server = ServerScriptService:FindFirstChild("Server") :: Instance
+	local Rig = require(Server:FindFirstChild("Enemies"):FindFirstChild("Rig") :: ModuleScript) :: any
+	local CollisionGroups =
+		require(Server:FindFirstChild("Util"):FindFirstChild("CollisionGroups") :: ModuleScript) :: any
 	local model = Instance.new("Model")
 	model.Name = "QA_Rider"
 	model:SetAttribute("QA_Rider", true)
-	local root = Instance.new("Part")
-	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(2, 2, 1)
-	root.Transparency = 1
-	root.Parent = model
-	model.PrimaryPart = root
-	local humanoid = Instance.new("Humanoid")
-	humanoid.HipHeight = 2
-	humanoid.RequiresNeck = false
-	humanoid.BreakJointsOnDeath = false
-	humanoid.Parent = model
+	local root = Rig.root(model, Vector3.new(2, 2, 1), 2)
+	local head = Rig.part(model, {
+		Name = "Head",
+		Size = Vector3.new(2, 1, 1),
+		CFrame = root.CFrame * CFrame.new(0, 1.5, 0),
+		CanCollide = true,
+	})
+	Rig.weld(root, head)
+	local humanoid = Rig.humanoid(model, 2, 16)
+	CollisionGroups.assign(model, CollisionGroups.Players)
 	model.Parent = workspace
 	root:SetNetworkOwner(nil)
 	return {
 		Name = "server rider",
 		Get = function()
+			if model.Parent == nil then
+				error(CHARACTER_GONE, 0)
+			end
 			return model, humanoid, root
 		end,
-	}, model
+	},
+		model
 end
 
 local function standingRide(belt: number, rises: boolean): (Ride) -> boolean
@@ -771,6 +871,11 @@ local function checkEscalators()
 			)
 			model:Destroy()
 		end
+	end
+
+	if serverMode then
+		reportSkipped("escalators: real players' rides", "needs a client: use Play")
+		return
 	end
 
 	-- Then real players, whose characters their own clients simulate.
@@ -866,10 +971,14 @@ local function checkOnce()
 	if workspace:GetAttribute("QA_NoPhysics") then
 		return -- the fake engine's smoke test: nothing below means anything without real physics
 	end
-	if flag("QA_EscalatorsOnly") or not workspace:GetAttribute("QA_From") then
+	-- a run aimed at particular levels leaves the rides out: they have their own run
+	local aimed = workspace:GetAttribute("QA_From")
+		or workspace:GetAttribute("QA_Levels")
+		or workspace:GetAttribute("QA_Batch")
+	if flag("QA_EscalatorsOnly") or not aimed then
 		checkEscalators()
 	else
-		print("[QA] Resuming with QA_From: escalator rides skipped")
+		print("[QA] Aimed at particular levels: escalator rides left out (QA_EscalatorsOnly runs them)")
 	end
 
 	-- nothing solid hanging in the void, nothing with broken numbers
@@ -894,20 +1003,46 @@ end
 
 -- ── the run ─────────────────────────────────────────────────────────────────
 
--- Which levels to run: QA_Levels narrows the list, QA_From starts part-way through it.
+local BATCH_SIZE = 2
+
+-- Which levels to run: QA_Batch or QA_Levels narrows the list, QA_From starts part-way through it.
 local function levelIds(): { string }
-	local wanted = workspace:GetAttribute("QA_Levels")
-	local list = {}
-	if type(wanted) == "string" and wanted ~= "" then
-		for id in wanted:gmatch("[^,%s]+") do
-			table.insert(list, id)
+	local Config = require(ReplicatedStorage.Shared.Campaign.CampaignConfig)
+	local all = {}
+	for _, level in Config.Levels do
+		if level.Implemented then
+			table.insert(all, level.Id)
 		end
-	else
-		local Config = require(ReplicatedStorage.Shared.Campaign.CampaignConfig)
-		for _, level in Config.Levels do
-			if level.Implemented then
-				table.insert(list, level.Id)
+	end
+	local list = all
+	local wanted = workspace:GetAttribute("QA_Levels")
+	local batch = workspace:GetAttribute("QA_Batch")
+	if type(wanted) == "string" and wanted ~= "" then
+		list = {}
+		for id in wanted:gmatch("[^,%s]+") do
+			report(table.find(all, id) ~= nil, "QA_Levels names a real level", id)
+			if table.find(all, id) then
+				table.insert(list, id)
 			end
+		end
+	elseif type(batch) == "number" then
+		local count = math.ceil(#all / BATCH_SIZE)
+		local valid = batch == math.floor(batch) and batch >= 1 and batch <= count
+		report(valid, "QA_Batch names a batch", string.format("%s of %d", tostring(batch), count))
+		list = {}
+		if valid then
+			for i = (batch - 1) * BATCH_SIZE + 1, math.min(batch * BATCH_SIZE, #all) do
+				table.insert(list, all[i])
+			end
+			print(
+				string.format(
+					"[QA] BATCH %d of %d: %s. %s",
+					batch,
+					count,
+					table.concat(list, ","),
+					if batch < count then string.format("Next: QA_Batch = %d", batch + 1) else "This is the last one."
+				)
+			)
 		end
 	end
 	local from = workspace:GetAttribute("QA_From")
@@ -923,6 +1058,15 @@ local function levelIds(): { string }
 	return list
 end
 
+local function memoryText(): string
+	local text = "memory n/a"
+	pcall(function()
+		local service: any = game:GetService("Stats")
+		text = string.format("server memory %.0f MB", service:GetTotalMemoryUsageMb())
+	end)
+	return text
+end
+
 local function stats(label: string)
 	local memory, instances = "n/a", "n/a"
 	pcall(function()
@@ -931,6 +1075,42 @@ local function stats(label: string)
 		instances = tostring(service.InstanceCount)
 	end)
 	print(string.format("[QA] STAT %s: %s since start, memory %s, instances %s", label, elapsed(), memory, instances))
+end
+
+local plannedStages: { string } = {}
+
+-- Exactly what this session did and didn't get to, whatever stopped it.
+local function printCoverage()
+	local complete, partial, notRun = {}, {}, {}
+	for _, key in plannedStages do
+		local log = stageLogs[key]
+		if not log then
+			table.insert(notRun, key)
+			print(string.format("[QA] COVERAGE %s: NOT RUN", key))
+		else
+			table.insert(if log.Complete then complete else partial, key)
+			print(
+				string.format(
+					"[QA] COVERAGE %s: %s, %d passed, %d failed, %d inconclusive, %d skipped",
+					key,
+					if log.Complete then "COMPLETE" else "PARTIAL",
+					log.Pass,
+					log.Fail,
+					log.Inconclusive,
+					log.Skipped
+				)
+			)
+		end
+	end
+	print(
+		string.format(
+			"[QA] COVERAGE TOTAL: %d complete, %d partial, %d not run, of %d stages",
+			#complete,
+			#partial,
+			#notRun,
+			#plannedStages
+		)
+	)
 end
 
 -- Always called once at the end, however the run ends: the summary must not depend on a clean finish.
@@ -953,10 +1133,12 @@ local function finish(stopReason: string?)
 			)
 		end
 		if currentLevel then
-			warn(string.format('[QA] RESUME: on Workspace set QA_From = "%s" (string), then press Play', currentLevel))
+			warn(string.format('[QA] RESUME: on Workspace set QA_From = "%s" (string), then start again', currentLevel))
 		end
 	end
-	local summary = string.format("%d passed, %d failed, %d inconclusive", passed, failed, inconclusive)
+	printCoverage()
+	local summary =
+		string.format("%d passed, %d failed, %d inconclusive, %d skipped", passed, failed, inconclusive, skipped)
 	print(string.format("[QA] %s: %s (%s)", if stopReason then "PARTIAL" else "DONE", summary, elapsed()))
 	for _, line in failures do
 		warn("[QA] FAILED: " .. line)
@@ -967,8 +1149,9 @@ local function finish(stopReason: string?)
 	workspace:SetAttribute("QA_Result", if stopReason then "stopped: " .. summary else summary)
 end
 
--- Runs fn with a time limit, so nothing can hang the run. The player leaving ends the whole run.
-local function step(label: string, limit: number, fn: () -> ()): boolean
+-- Runs fn with a time limit, so nothing can hang the run or stop the checks after it. Only the
+-- player leaving ends the whole run.
+step = function(label: string, limit: number, fn: () -> ()): boolean
 	currentStep = label
 	local done, problem = false, nil
 	local thread = task.spawn(function()
@@ -1000,21 +1183,78 @@ local function step(label: string, limit: number, fn: () -> ()): boolean
 	return true
 end
 
-local function run()
-	local player = Players:GetPlayers()[1] or Players.PlayerAdded:Wait()
-	while player:GetAttribute("DataLoaded") ~= true do
-		task.wait(0.25)
-	end
-	if player:GetAttribute("DataMock") ~= true then
-		warn("[QA] A real DataStore is connected (Studio API access is on). Stopping, so saved data can't be touched.")
-		warn("[QA] Turn off Game Settings → Security → Enable Studio Access to API Services, then run again.")
-		return
-	end
-	Players.PlayerRemoving:Connect(function(leaving)
-		if leaving == player then
-			finish("the player disconnected")
+-- Evidence for a disconnect: when each side went quiet, and what the run was doing at that moment.
+local function watchHealth()
+	local lastFrame = os.clock()
+	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		if now - lastFrame > 2 and not finished then
+			warn(string.format("[QA] STALL server froze for %.1f s, during: %s", now - lastFrame, currentStep))
+		end
+		lastFrame = now
+	end)
+	task.spawn(function()
+		while not finished do
+			task.wait(5)
+			for player, news in clientNews do
+				local quiet = os.clock() - (news.At or 0)
+				if quiet > CLIENT_SILENT and not news.Silent then
+					news.Silent = os.clock()
+					warn(
+						string.format(
+							"[QA] CLIENT SILENT %s: nothing for %.0f s, at %s, during: %s, %s",
+							player.Name,
+							quiet,
+							elapsed(),
+							currentStep,
+							memoryText()
+						)
+					)
+				end
+			end
 		end
 	end)
+end
+
+local function run()
+	local mode = workspace:GetAttribute("QA_Mode")
+	local okMode, isRunMode = pcall(function()
+		return RunService:IsRunMode()
+	end)
+	serverMode = mode == "Server" or (mode ~= "Play" and okMode and isRunMode == true)
+
+	local player: Player? = nil
+	if not serverMode then
+		local deadline = os.clock() + 180
+		while #Players:GetPlayers() == 0 and os.clock() < deadline do
+			task.wait(0.25)
+		end
+		player = Players:GetPlayers()[1]
+		if not player then
+			finish("no player joined within 180 s")
+			return
+		end
+		while player:GetAttribute("DataLoaded") ~= true and player.Parent == Players and os.clock() < deadline do
+			task.wait(0.25)
+		end
+		if player:GetAttribute("DataLoaded") ~= true then
+			finish("the player's data never loaded")
+			return
+		end
+		if player:GetAttribute("DataMock") ~= true then
+			warn(
+				"[QA] A real DataStore is connected (Studio API access is on). Stopping, so saved data can't be touched."
+			)
+			warn("[QA] Turn off Game Settings → Security → Enable Studio Access to API Services, then run again.")
+			return
+		end
+		local main = player
+		Players.PlayerRemoving:Connect(function(leaving)
+			if leaving == main then
+				finish("the player disconnected")
+			end
+		end)
+	end
 	game:BindToClose(function()
 		finish("the server shut down")
 	end)
@@ -1026,64 +1266,131 @@ local function run()
 	fromClient.OnServerEvent:Connect(function(sender: Player, kind: any, data: any)
 		local news = clientNews[sender] or {}
 		clientNews[sender] = news
+		if news.Silent then
+			print(string.format("[QA] CLIENT BACK %s after %.0f s", sender.Name, os.clock() - news.Silent))
+			news.Silent = nil
+		end
 		news.Kind, news.At = tostring(kind), os.clock()
 		if type(data) == "table" then
 			news.IdleSeconds = data.IdleSeconds or news.IdleSeconds
 			news.Ramps = data.Ramps or news.Ramps
 		end
-		if kind == "Idled" or kind == "Ready" or kind == "Note" then
+		if kind ~= "Alive" then
 			print(string.format("[QA] CLIENT %s: %s %s", sender.Name, tostring(kind), tostring(data and data.Text)))
 		end
 	end)
+	watchHealth()
 
 	local walks = workspace:GetAttribute("QA_Walk")
 	local walkCount = if type(walks) == "number" then walks else 3
 	local limit = workspace:GetAttribute("QA_StageLimit")
 	local stageLimit = if type(limit) == "number" then limit else STAGE_LIMIT
+	local session = workspace:GetAttribute("QA_SessionLimit")
+	local sessionLimit = if type(session) == "number" then session elseif serverMode then 0 else SESSION_LIMIT
 	print(
 		string.format(
-			"[QA] Night Shift Studio harness version %d starting. QA_EscalatorsOnly=%s QA_From=%s QA_Levels=%s QA_Walk=%d QA_Riders=%s",
+			"[QA] Night Shift Studio harness version %d starting. MODE %s. QA_EscalatorsOnly=%s QA_Batch=%s QA_From=%s QA_Levels=%s QA_Stage=%s QA_Walk=%d QA_Riders=%s",
 			HARNESS_VERSION,
+			if serverMode then "Server" else "Play",
 			tostring(flag("QA_EscalatorsOnly")),
+			tostring(workspace:GetAttribute("QA_Batch")),
 			tostring(workspace:GetAttribute("QA_From")),
 			tostring(workspace:GetAttribute("QA_Levels")),
+			tostring(workspace:GetAttribute("QA_Stage")),
 			walkCount,
 			tostring(workspace:GetAttribute("QA_Riders"))
 		)
 	)
-	if not step("one-off checks", math.max(stageLimit, 600), checkOnce) then
+	if not step("one-off checks", 600, checkOnce) then
 		return
+	end
+
+	local stages = { "Day", "Night" }
+	local onlyStage = workspace:GetAttribute("QA_Stage")
+	if type(onlyStage) == "string" and onlyStage ~= "" then
+		report(onlyStage == "Day" or onlyStage == "Night", "QA_Stage names a stage", onlyStage)
+		stages = if onlyStage == "Day" or onlyStage == "Night" then { onlyStage } else {}
 	end
 	local ids = if flag("QA_EscalatorsOnly") then {} else levelIds()
 	for _, id in ids do
+		for _, stage in stages do
+			table.insert(plannedStages, id .. " " .. stage)
+		end
+	end
+
+	for _, id in ids do
 		currentLevel = id
+		if sessionLimit > 0 and os.clock() - startedAt > sessionLimit then
+			finish(string.format("session limit of %d s reached, by design", sessionLimit))
+			return
+		end
 		print(string.format('[QA] LEVEL %s starting (%s). If this run dies: QA_From = "%s"', id, elapsed(), id))
 		local before = { passed, failed, inconclusive }
+		local walkedInLevel = {}
 		workspace:SetAttribute("MissionTest_Level", id)
 		skipTo("Dawn", 120)
 		local onLevel = skipTo("Day", 120) and ReplicatedStorage:GetAttribute("LevelId") == id
 		report(onLevel, id .. " loads")
 		if onLevel then
-			for _, stage in { "Day", "Night" } do
+			for _, stage in stages do
 				if stage == "Night" then
 					skipTo("Night", 60)
 				end
-				local prefix = id .. " " .. stage .. ":"
-				local alive = step(prefix .. " checks", stageLimit, function()
-					waitAlive(player)
-					currentStep = prefix .. " prompts"
-					local reachable = checkPrompts(prefix, player, id .. stage)
-					currentStep = prefix .. " spawns"
+				local key = id .. " " .. stage
+				local prefix = key .. ":"
+				local log = stageLog(key)
+				local stageEnds = os.clock() + stageLimit
+				local rider, riderModel = nil, nil
+				if player then
+					local main = player
+					rider = {
+						Name = main.Name,
+						Get = function()
+							return waitAlive(main)
+						end,
+					}
+				else
+					rider, riderModel = serverRider()
+					local spawn = workspace:FindFirstChild("PlayerSpawn", true) :: BasePart?
+					local at = if spawn then spawn.Position else Vector3.new(0, 1, -52)
+					local placed: Model = riderModel
+					placed:PivotTo(CFrame.new(at + Vector3.new(0, 3.2, 0)))
+					task.wait(1)
+				end
+
+				-- Each check has its own limit, and the stage has one over all: a check that's stuck
+				-- costs that check, not the ones after it.
+				local function check(name: string, seconds: number, fn: () -> ()): boolean
+					local left = stageEnds - os.clock()
+					if left <= 0 then
+						reportUnclear(
+							prefix .. " " .. name,
+							string.format("not run: the stage used up its %d s", stageLimit)
+						)
+						return true
+					end
+					return step(prefix .. " " .. name, math.min(seconds, math.ceil(left)), fn)
+				end
+				local reachable = {}
+				local alive = check("prompts", PROMPTS_LIMIT, function()
+					reachable = checkPrompts(prefix, rider, id .. stage)
+				end) and check("spawns", CHECK_LIMIT, function()
 					checkSpawns(prefix, stage)
-					currentStep = prefix .. " level checks"
+				end) and check("level checks", CHECK_LIMIT, function()
 					checkLevelSpecific(id, stage, prefix)
-					currentStep = prefix .. " movers"
+				end) and check("movers", CHECK_LIMIT, function()
 					checkMovers(prefix, 15)
-					checkWalks(prefix, player, stage, reachable, walkCount)
+				end) and check("walks", stageLimit, function()
+					checkWalks(prefix, rider, stage, reachable, walkCount, walkedInLevel)
 				end)
+				if riderModel then
+					riderModel:Destroy()
+				end
 				if not alive then
 					return
 				end
+				log.Complete = true
+				print(string.format("[QA] STAGE %s COMPLETE", key))
 				stats(prefix)
 			end
 		end

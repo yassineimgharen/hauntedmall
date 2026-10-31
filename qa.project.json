@@ -47,8 +47,8 @@
 		},
 		"Lighting": {
 			"$properties": {
-				"Technology": "Future",
-				"GlobalShadows": true
+				"Technology": "Voxel",
+				"GlobalShadows": false
 			}
 		},
 		"SoundService": {

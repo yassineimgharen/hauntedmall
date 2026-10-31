@@ -8,6 +8,7 @@ local Engine = require("./harness/Engine")
 
 Check.suite("StudioHarness", "Integration-tested")
 local test, eq, truthy = Check.test, Check.eq, Check.truthy
+local Enum = require("@lune/roblox").Enum
 
 test("the harness runs to the end in the fake engine with no failed checks and no crash", function()
 	local world = Engine.new({ Seed = 2, Attributes = { QA_Levels = "L01,L12,L14", QA_Walk = 1, QA_NoPhysics = true } })
@@ -183,6 +184,204 @@ test("QA_From resumes at that level, skips the rides, and runs through the rest"
 	eq(world:GetPrints("Escalator1"), "", "no rides")
 end)
 
+local function fullOutput(world: any): string
+	local out = {}
+	for _, line in world.Log do
+		table.insert(out, "12:00:00.000  " .. tostring(line[1]))
+	end
+	for _, warning in world.Warnings do
+		table.insert(out, "12:00:00.000  " .. warning.Message)
+	end
+	return table.concat(out, "\n")
+end
+
+test("Studio regression: the server rider is a real game rig, not a default R6 Humanoid", function()
+	local seen = nil
+	local world
+	world = harnessRun({ QA_EscalatorsOnly = true, QA_Mode = "Server" }, {
+		After = function(model)
+			if model:GetAttribute("QA_Rider") and not seen then
+				local humanoid = model:FindFirstChildOfClass("Humanoid")
+				seen = {
+					RigType = humanoid.RigType,
+					HipHeight = humanoid.HipHeight,
+					WalkSpeed = humanoid.WalkSpeed,
+					Group = model:FindFirstChild("HumanoidRootPart").CollisionGroup,
+					HeadCollides = model:FindFirstChild("Head").CanCollide,
+				}
+			end
+		end,
+	}, 0)
+	finished(world, 300)
+	truthy(seen, "a rider rode")
+	eq(seen.RigType, Enum.HumanoidRigType.R15, "R15: R6 needs leg parts to stand")
+	eq(seen.HipHeight, 2, "stands on its hip height")
+	eq(seen.WalkSpeed, 16, "walks like a player")
+	eq(seen.Group, "Players", "collides like a player")
+	eq(seen.HeadCollides, true, "as tall as a player")
+end)
+
+test("Studio regression: a rider sliding down the belt at 55 studs/s is still a failure", function()
+	local _, failed = escalatorRun({
+		ReadyAt = 100000,
+		After = function(model)
+			local at = model:GetPivot()
+			if model:GetAttribute("QA_Rider") and at.Position.X > 0 then
+				model:PivotTo(at + at.LookVector * 8)
+			end
+		end,
+	})
+	truthy(failed:find("Escalator2 (down): real physics carries a server-owned rider", 1, true), failed)
+	eq(failed:find("Escalator1 (up): real physics", 1, true), nil, failed)
+end)
+
+test("Run mode needs no player: the belts and every check it can do, the rest marked skipped", function()
+	local world = harnessRun({ QA_Mode = "Server", QA_Levels = "L05", QA_Walk = 1 }, {}, 0)
+	finished(world, 500)
+	truthy(world:GetPrints("MODE Server") ~= "", "says so")
+	eq(lines(world, "[QA] FAIL "), "", "no failures")
+	truthy(world:GetPrints("[QA] PASS L05 Night: a character walks to") ~= "", "the rider walked")
+	truthy(world:GetPrints("[QA] STAGE L05 Night COMPLETE") ~= "", "stage finished")
+	truthy(world:GetPrints("[QA] COVERAGE L05 Day: COMPLETE") ~= "", "coverage")
+end)
+
+test("Run mode marks player-only checks as skipped, never passed", function()
+	local world = harnessRun({ QA_Mode = "Server", QA_EscalatorsOnly = true }, {}, 0)
+	finished(world, 300)
+	truthy(world:GetPrints("[QA] SKIPPED escalators: real players' rides") ~= "", "skipped")
+	truthy(world:GetPrints("[QA] PASS Escalator2 (down): real physics") ~= "", "the rider rode")
+	eq(world:GetPrints("[QA] PASS Escalator1 (up): carries a standing character"), "", "no player ride claimed")
+	truthy(world.Workspace:GetAttribute("QA_Result"):find("1 skipped", 1, true), "counted")
+end)
+
+test("QA_Batch picks two levels and names the next batch; a wrong one says so", function()
+	local world = harnessRun({ QA_Batch = 3, QA_Walk = 0, QA_NoPhysics = true }, {})
+	finished(world, 300)
+	truthy(world:GetPrints("[QA] BATCH 3 of 7: L05,L06. Next: QA_Batch = 4") ~= "", "named")
+	eq(world:GetPrints("[QA] LEVEL L04 starting"), "", "not earlier")
+	truthy(world:GetPrints("[QA] LEVEL L06 finished") ~= "", "ran")
+	eq(world:GetPrints("[QA] LEVEL L07 starting"), "", "not later")
+	local wrong = harnessRun({ QA_Batch = 99, QA_NoPhysics = true }, {})
+	finished(wrong, 60)
+	truthy(lines(wrong, "[QA] FAIL QA_Batch") ~= "", "said so")
+end)
+
+test("QA_Stage tests just that stage", function()
+	local world = harnessRun({ QA_Levels = "L02", QA_Stage = "Night", QA_Walk = 0, QA_NoPhysics = true }, {})
+	finished(world, 300)
+	truthy(world:GetPrints("[QA] STAGE L02 Night COMPLETE") ~= "", "night ran")
+	eq(world:GetPrints("[QA] STAGE L02 Day"), "", "day didn't")
+end)
+
+test("a session stops cleanly at its limit, between levels, and says what wasn't reached", function()
+	local world = harnessRun({ QA_Levels = "L01,L02", QA_SessionLimit = 1, QA_Walk = 0, QA_NoPhysics = true }, {})
+	finished(world, 300)
+	truthy(lines(world, "[QA] STOPPED"):find("session limit", 1, true), "said why")
+	truthy(
+		lines(world, "[QA] RESUME"):find('"L01"', 1, true) ~= nil
+			or lines(world, "[QA] RESUME"):find('"L02"', 1, true) ~= nil,
+		"where to go on"
+	)
+	truthy(world:GetPrints("[QA] COVERAGE L02 Night: NOT RUN") ~= "", "named what's left")
+	truthy(world:GetPrints("[QA] COVERAGE TOTAL") ~= "", "total")
+end)
+
+test("a disconnect reports exactly which stages were completed, partial and not run", function()
+	local world = harnessRun({ QA_Levels = "L01,L02", QA_Walk = 0, QA_NoPhysics = true }, {})
+	truthy(
+		world:runUntil(function()
+			return world:GetPrints("[QA] STAGE L01 Day COMPLETE") ~= ""
+		end, 200),
+		"finished a stage"
+	)
+	world:removePlayer(world.Players:GetPlayers()[1])
+	world:run(1)
+	truthy(world:GetPrints("[QA] COVERAGE L01 Day: COMPLETE") ~= "", "done")
+	truthy(world:GetPrints("[QA] COVERAGE L02 Night: NOT RUN") ~= "", "not reached")
+	truthy(world:GetPrints("[QA] PARTIAL") ~= "", "a partial total, not DONE")
+	eq(world:GetPrints("[QA] DONE"), "", "not called done")
+end)
+
+test("a client that goes quiet is recorded when it happens, with what the run was doing", function()
+	local world = harnessRun({ QA_Levels = "L01,L02,L03,L04", QA_Walk = 0 }, {})
+	world:runUntil(function()
+		return world.ReplicatedStorage:FindFirstChild("QA_ClientReport") ~= nil
+	end, 60)
+	local remote = world.ReplicatedStorage:FindFirstChild("QA_ClientReport")
+	local player = world.Players:GetPlayers()[1]
+	remote.OnServerEvent:_fire(player, "Ready", { Ramps = {}, Text = "loaded" })
+	truthy(
+		world:runUntil(function()
+			return lines(world, "[QA] CLIENT SILENT") ~= ""
+		end, 120),
+		"noticed"
+	)
+	truthy(lines(world, "[QA] CLIENT SILENT"):find("during:", 1, true), "says what was running")
+	remote.OnServerEvent:_fire(player, "Alive", {})
+	truthy(world:GetPrints("[QA] CLIENT BACK") ~= "", "and when it returned")
+end)
+
+test("walks take this level's own prompts first and don't repeat a mall fixture within a level", function()
+	local world = harnessRun({ QA_Levels = "L05", QA_Walk = 2 }, {})
+	finished(world, 600)
+	local seen, repeats, first = {}, 0, nil
+	for line in fullOutput(world):gmatch("[^\n]+") do
+		local target = line:match("a character walks to .- :: (Workspace[^:]+):")
+		if target then
+			first = first or target
+			if target:find("Workspace.Mall.", 1, true) and seen[target] then
+				repeats += 1
+			end
+			seen[target] = true
+		end
+	end
+	truthy(first and not first:find("Workspace.Mall.", 1, true), "own prompts first: " .. tostring(first))
+	eq(repeats, 0, "fixtures once per level")
+end)
+
+test("the merge report joins sessions: latest result wins, unfinished stages say so", function()
+	local StudioLog = require("./harness/StudioLog")
+	local merged = StudioLog.new()
+	StudioLog.add(
+		merged,
+		"a.txt",
+		[[10:00:00.000  [QA] Night Shift Studio harness version 4 starting. MODE Server. QA_Batch=nil
+10:00:01.000  [QA] FAIL L01 Day: a character walks to "X" :: ended 9 studs away
+10:00:02.000  [QA] PASS L01 Day: every enabled prompt has a real path :: 30 prompts
+10:00:03.000  [QA] STAGE L01 Day COMPLETE
+10:00:04.000  [QA] FAIL L02 Day: every enabled prompt has a real path :: "Y": NoPath
+10:00:05.000  [QA] STOPPED after 1m00s: the player disconnected, during: L02 Day: prompts]]
+	)
+	StudioLog.add(
+		merged,
+		"b.txt",
+		[[10:00:00.000  [QA] Night Shift Studio harness version 4 starting. MODE Server. QA_Batch=nil
+10:00:01.000  [QA] PASS L01 Day: a character walks to "X" :: ended 2 studs away
+10:00:02.000  some other line that isn't ours
+10:00:03.000  [QA] INCONCLUSIVE L03 Night: prompts :: gave up after 60 s]]
+	)
+	eq(merged.Results.Server['L01 Day: a character walks to "X"'].Status, "PASS", "the later session wins")
+	eq(merged.Complete.Server["L01 Day"], true, "stage completed")
+	local text = StudioLog.render(merged, { "L01", "L02", "L03" })
+	truthy(text:find("| L01 Day | complete | **not complete** | 0 | 0 |", 1, true), text)
+	truthy(text:find("| L02 Day | **not complete** | **not complete** | 1 | 0 |", 1, true), text)
+	truthy(text:find("| L03 Night | **not complete** | **not complete** | 0 | 1 |", 1, true), text)
+	truthy(text:find("NoPath", 1, true) and text:find("gave up after 60 s", 1, true), "details kept")
+	truthy(text:find("the player disconnected", 1, true), "evidence kept")
+end)
+
+test("the harness's real output goes through the merge report", function()
+	local StudioLog = require("./harness/StudioLog")
+	local world = harnessRun({ QA_Mode = "Server", QA_Levels = "L02", QA_Walk = 1 }, {}, 0)
+	finished(world, 500)
+	local merged = StudioLog.new()
+	StudioLog.add(merged, "run.txt", fullOutput(world))
+	eq(merged.Complete.Server["L02 Day"], true, "day")
+	eq(merged.Complete.Server["L02 Night"], true, "night")
+	truthy(merged.Results.Server["L02 loads"], "a result by name")
+	eq(merged.Version["run.txt"] ~= nil, true, "version read")
+end)
+
 test("a QA_From that names no level fails instead of quietly testing nothing", function()
 	local world = harnessRun({ QA_From = "L99", QA_NoPhysics = true }, {})
 	finished(world, 60)
@@ -208,10 +407,13 @@ test("a disconnect ends the run at once with a summary and the level to resume f
 end)
 
 test("a stage over its time limit is given up on, and the run carries on", function()
-	local world = harnessRun({ QA_Levels = "L01,L02", QA_StageLimit = 1, QA_Walk = 3, QA_From = "L01" }, {})
+	local world = harnessRun({ QA_Levels = "L01,L02", QA_StageLimit = 6, QA_Walk = 3 }, {})
 	finished(world, 500)
-	truthy(lines(world, "[QA] INCONCLUSIVE L01 Day: checks"):find("gave up after 1 s", 1, true), "timed out")
+	truthy(lines(world, "[QA] INCONCLUSIVE L01 Day:"):find("gave up after", 1, true), "timed out")
 	truthy(world:GetPrints("[QA] LEVEL L02 finished") ~= "", "went on to the next level")
+	local spent = harnessRun({ QA_Levels = "L01", QA_StageLimit = 1, QA_Walk = 3 }, {})
+	finished(spent, 300)
+	truthy(lines(spent, "[QA] INCONCLUSIVE L01 Day:"):find("not run", 1, true), "what's left says it didn't run")
 end)
 
 test("a character that dies on a walk tries again on its new body and isn't called lost", function()
@@ -328,6 +530,13 @@ test("the shipped project doesn't include the harness", function()
 	eq(project.tree.StarterPlayer.StarterPlayerScripts.NightShiftQAClient, nil, "no client helper either")
 	local qa = serde.decode("json", fs.readFile("qa.project.json"))
 	truthy(qa.tree.StarterPlayer.StarterPlayerScripts.NightShiftQAClient, "the QA place has it")
+	eq(project.tree.Lighting["$properties"].Technology, "Future", "only the QA place has cheaper lighting")
+	eq(qa.tree.Lighting["$properties"].Technology, "Voxel", "for a laptop with 8 GB")
+	eq(
+		fs.readFile("tools/studio/NightShiftQAClient.client.luau"):find("VirtualUser", 1, true),
+		nil,
+		"Studio forbids it"
+	)
 end)
 
 Check.finish()

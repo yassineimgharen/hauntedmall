@@ -37,7 +37,7 @@ git pull
 rojo build qa.project.json -o NightShiftQA.rbxl
 ```
 
-Close Studio before building, then open the new file, leave API access off, press Play, and send me the `[QA]` lines. The first line must say harness version 3.
+Close Studio before building, then open the new file, leave API access off, press Play, and send me the `[QA]` lines. The first line must say harness version 4. Start with Run (F8), which needs no client; the batches are in that file.
 
 **2. By hand, in the normal place, with `MissionTest_Level` set on Workspace:**
 

@@ -2,13 +2,24 @@
 
 The Lune tests run the real server code, but in a fake engine. This harness checks what only Roblox can show: real collisions, `PathfindingService`, raycasts, Humanoid walking, welds and conveyors.
 
-**Current build: harness version 3.** The first line of a run says `[QA] Night Shift Studio harness version 3 starting`. A different number, or no version at all, means an old place file is open.
+**Current build: harness version 4.** The first `[QA]` line says `harness version 4 starting`. A different number means an old place file is open.
 
-Studio runs reported so far, neither on this version: 39 passed, 1 failed; then six failures and a disconnect at L08 (below). That second run's `0, 0, 0` line and its ignored `QA_EscalatorsOnly` match the build before version 2, so it almost certainly used an old place file. In the fake engine (`tests/StudioHarness.spec.luau`) only the harness's logic is tested.
+Nothing below has run in Studio on this version yet. In the fake engine (`tests/StudioHarness.spec.luau`) only the harness's logic is tested.
+
+## Two ways to run
+
+| | **Run (F8)** | **Play (F5)** |
+|---|---|---|
+| What runs | Server only: no player, no client, no rendering | Server plus a real client |
+| Who walks | A rider the server simulates, built with the game's `Rig`, sized and collision-grouped like a player | Your character |
+| Checks | Prompt routes and line of sight, spawn points, collisions, walks, L12 ramp, belts, plus NPCs where any appear | All of those, plus monsters, bosses, the client's view of the belts, player rides |
+| Can freeze or disconnect | No client to freeze or lose | Yes: that's what stopped earlier runs |
+
+Run mode is the cheap way to cover all 14 levels. Anything it can't do says `SKIPPED`, which is never a pass.
 
 ## Run it
 
-1. **Close Studio first.** Studio keeps the file it opened, so rebuilding underneath it changes nothing. Then, in the repo folder:
+1. **Close Studio first.** Then, in the repo folder:
 
    ```powershell
    git pull
@@ -17,49 +28,76 @@ Studio runs reported so far, neither on this version: 39 passed, 1 failed; then 
    rojo build qa.project.json -o NightShiftQA.rbxl
    ```
 
-2. Open that `NightShiftQA.rbxl` from that folder. Leave **Enable Studio Access to API Services** off: the harness refuses to run if it is on, so it can't touch saved data.
-3. Optional: select **Workspace** and add attributes. A new build has none, so add them after every rebuild:
+2. Open that `NightShiftQA.rbxl`. Leave **Enable Studio Access to API Services** off: in Play mode the harness refuses to run if it is on, and Run mode loads no player data.
+3. Select **Workspace** and add attributes if you want them. Changing one doesn't need a rebuild; a rebuild loses them.
 
    | Attribute | Type | What it does |
    |---|---|---|
-   | `QA_EscalatorsOnly` | boolean, ticked | Only the one-off checks and escalator rides |
-   | `QA_From` | string, like `L08` | Resume: start at that level, run the rest, skip the rides |
+   | `QA_Batch` | number, 1–7 | Two levels: 1 = L01,L02 ... 7 = L13,L14. The run names the next batch |
    | `QA_Levels` | string, like `L12,L14` | Only these levels |
+   | `QA_From` | string, like `L08` | Start at that level of the list |
+   | `QA_Stage` | string, `Day` or `Night` | Only that stage |
+   | `QA_EscalatorsOnly` | boolean, ticked | Only the one-off checks and belts |
    | `QA_Walk` | number | Prompts per stage a character walks to. Default 3; 0 is fastest |
-   | `QA_Riders` | number | Wait for this many players and ride together. Use **Test → Clients and Servers**, and read the **Server** window |
-   | `QA_StageLimit` | number | Seconds a stage may take before it's given up on. Default 420 |
+   | `QA_Riders` | number | Wait for this many players and ride together. **Test → Clients and Servers**; read the **Server** window |
+   | `QA_SessionLimit` | number | Play only: stop cleanly between levels after this many seconds. Default 900; 0 = never |
+   | `QA_StageLimit` | number | Seconds a stage may take in all. Default 420 |
 
-4. Press **Play (F5)**, keep Output open and don't move the character. Dragging the camera with the right mouse button is fine, and every 10 minutes or so it may stop an idle disconnect.
-5. Check the first `[QA]` line for the version and your settings. Then wait for `[QA] DONE`, or `[QA] PARTIAL` if the run stopped early.
-6. Copy all the `[QA]` lines back to me.
-
-If a run dies, the Output has a `[QA] RESUME` line, or look for the last `[QA] LEVEL` line. Put that level in `QA_From` and press Play again.
+4. Press **F8** or **F5**. In Play, don't move the character.
+5. Check the first `[QA]` line: version 4, the right `MODE`, your settings.
+6. Wait for `[QA] DONE` or `[QA] PARTIAL`, then copy the Output.
 
 ## What the results mean
 
 - **PASS / FAIL:** it was measured. FAIL is a problem to investigate, and may still be the harness's.
-- **INCONCLUSIVE:** it couldn't be measured this time, such as a monster blocking every try. Not a pass, and not evidence of a bug.
-- **`[QA] STAT`:** time, memory and instance count after each stage, to show a leak or a run nearing the memory limit.
-- **`[QA] CLIENT`:** the helper script in the client: when it loaded, and when Roblox called it idle.
+- **INCONCLUSIVE:** it was attempted and couldn't be measured, such as a time limit or a monster blocking every try. Not a pass, and not evidence of a bug.
+- **SKIPPED:** this mode can't try it. Run it in Play.
+- **`[QA] COVERAGE`:** at the end, every stage planned for the session: `COMPLETE`, `PARTIAL` or `NOT RUN`.
+- **`[QA] CLIENT SILENT`, `CLIENT BACK`, `STALL`, `CLIENT-LOCAL`, `CLIENT-ERROR`, `STAT`:** evidence about freezes and disconnects.
 
-## The 2026-10-31 run: six failures and a disconnect
+Every check has a time limit, and a stuck check costs only that check. Results print the moment they happen, so a run that dies keeps them.
 
-| Failure | Verdict | Why |
+## Keeping results across sessions
+
+Save each session's Output as a text file in `qa-results/`, such as `batch3-play.txt`. Then `.tools/bin/lune run scripts/qa-studio-report.luau` merges them into `docs/qa/STUDIO_RESULTS.md`: per stage and mode, whether it's complete, with every failure, inconclusive result and disconnect. A later file's result for a check replaces an earlier one's.
+
+If Studio itself dies, the lines should still be in its log files. This hasn't been tried on your laptop:
+
+```powershell
+Get-ChildItem "$env:LOCALAPPDATA\Roblox\logs\*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 3 | Select-String "\[QA\]"
+```
+
+## Reported Studio runs
+
+### Harness version 3 (`3a28b45`): 21 passed, 1 failed, stopped after 7m45s
+
+| Issue | Verdict | Why |
 |---|---|---|
-| Escalators `0, 0, 0` | Harness, old build | Only the old build can print that line |
-| `QA_EscalatorsOnly` ignored | Old build | The old build doesn't have that setting |
-| L01 Night 49.7 away; L03 Night 28.0 and 76.0 away | Inconclusive, harness flaw confirmed | The old walk carried on with a dead character's body and never said why it stopped. Monsters can kill it at night. Now: damage off while walking, retries, and it reports where it stopped and on what |
-| L05 Day spawn at (-60, 3, 60) | Harness false alarm | The vault's wall really is within half a stud of the marker, but only monsters use it, only at night, and the vault is gone by then. Now checked at night only, and it names what it hits |
-| L05 Night `Serve Customer`, `Order Stock` NoPath | Inconclusive | In the built geometry, every shop is open at the harness's agent size. Roblox's navmesh updates after parts change, and that stage had just changed many, but this is unproven. Now: retries at 5 and 15 s, a narrower agent, then a failure naming the shop and start point |
-| Disconnect at L08 | Inconclusive | Nothing in the game's code kicks a player in this mode. Idle disconnect after 20 minutes and running out of memory on 8 GB are both possible. The old harness then waited forever for a character, which is why there was no `DONE`. Now: a summary and a resume line at once, plus client heartbeats and memory figures to settle it |
+| `Escalator2 (down): real physics carries a server-owned rider` at about 55 studs/s | **Harness bug, fix unconfirmed in Studio** | The rider was built by hand and left at the default R6 rig, which needs leg parts to stand, instead of `Rig.humanoid`'s R15. The belt runs at 7, so the extra speed isn't the belt's; gravity on a 30° slope is about 98 studs/s², enough for that speed in under a second. Real players passed on the same belt |
+| `lacking capability LocalUser` | **Harness bug, fixed** | `VirtualUser` isn't allowed in a LocalScript. Removed |
+| Disconnect during L01 Day | **Inconclusive** | See below |
+| `HttpError: DnsResolve` | **Not explained** | Failed name lookups for assets. A local session doesn't need DNS to connect, so nothing ties this to the disconnect yet |
+
+**The disconnect.** The last heartbeat was 307 s old at 7m45s, so the client went quiet at about 2m38s, five minutes before the connection dropped. A walk needing a second try fits a client that had stopped, since a client moves its own character, but it doesn't prove it.
+
+| Possible cause | Status |
+|---|---|
+| Inactivity | Unlikely for this stop: 7m45s is well short of the 20-minute idle disconnect |
+| Client freeze | Best fit, unproven. The Output should now show `CLIENT-LOCAL` lines stopping too, and any `froze` line |
+| Network between server and client | Open. `CLIENT-LOCAL` lines still printing while the server says `CLIENT SILENT` would point here |
+| Memory | No figures in the report. `CLIENT-LOCAL` and `STAT` lines now give them |
+| Game client code | Every client loop was read and yields, so none hangs by itself. That's a code review, not a measurement |
+
+### Earlier
+
+- **Version 2 or older, stopped at L08, six failures:** that run's `0, 0, 0` line and ignored `QA_EscalatorsOnly` match the build before `d6e2ca8`, so it almost certainly used an old place file. L05 Day's spawn failure was a false alarm: the vault's wall is within half a stud of a marker that only monsters use, only at night, when the vault is gone. L01, L03 and L05 Night stayed inconclusive.
+- **First run:** 39 passed, 1 failed, the escalator check before it could tell a loading client from a broken belt.
 
 ## Escalator check
 
-A real result now comes in three layers:
-
-1. **Server rider:** a test character the server simulates, with no client involved, on both belts. This is Roblox's physics acting on the belt directly. If this fails, the belts are broken.
-2. **Client's view:** the helper script reports the belt speed the client sees, since a player's physics runs there. If layer 1 passes and this fails, the speed isn't replicating.
-3. **Player rides:** standing, walking with the belt and against it. It first waits up to 90 s for gravity to move the character. A client that never starts is INCONCLUSIVE, because no ride was measured.
+1. **Server rider:** no client involved, on both belts. It's the game's own rig, so if it fails the belts or that rig have a real problem.
+2. **Client's view (Play):** the helper script reports the belt speed the client sees, since a player's physics runs there.
+3. **Player rides (Play):** standing, walking with the belt and against it, after waiting up to 90 s for gravity to move the character.
 
 | Ride | Passes when |
 |---|---|
@@ -68,24 +106,24 @@ A real result now comes in three layers:
 | Walking against it | Reaches the end, slower than the walking speed of 16 |
 | All of them | No step over 6 studs between samples, under 1 stud sideways, under 1.5 studs of bounce. Standing riders also slip back under 0.5 studs |
 
-These limits are first estimates and have not been checked against the real engine. Each result line prints the measured numbers, so a limit that is wrong can be told from a bad ride.
-
-The published game never contains this script: `default.project.json` doesn't include it, and a test checks that.
+These limits are first estimates, not checked against the real engine. Each result prints the measured numbers, so a wrong limit can be told from a bad ride.
 
 ## What it checks
 
 | Check | How |
 |---|---|
-| Every enabled prompt has a route | The real `PathfindingService`, from the character to within activation range |
+| Every enabled prompt has a route | The real `PathfindingService`, from the character to within activation range, every stage. Missing routes retry after 5 and 15 s, then with a narrower agent |
 | Line of sight on prompts that need it | Real raycast from where the path ends |
-| A real character gets there | `Humanoid:MoveTo` along the path, with real collisions, for the farthest few prompts of each stage |
+| A character gets there | `Humanoid:MoveTo` with real collisions. The level's own prompts first; mall fixtures once per level |
 | Monster spawn points | At night: floor below them, nothing fixed inside them |
-| NPCs and monsters move | Real Humanoids, sampled over 15 s |
+| NPCs and monsters move | Real Humanoids, for up to 15 s, stopping as soon as one has moved |
 | Bosses | L07 and L14: weak points on the body (welds really hold), a beam raycast really hits them |
 | L12 ramp | A real path down the basement ramp (BUG-01) |
-| Escalators | Both belts: a server-simulated rider, the belt speed the client sees, and player rides. Speed, climb, stepping off, teleports, jitter |
+| Belts | See above |
 | Remotes | All created |
 | World sanity | No parts at impossible positions |
+
+The published game never contains the harness or its client helper: `default.project.json` doesn't include them, and a test checks that. The QA place also uses cheaper lighting (Voxel, no shadows) to go easier on an 8 GB laptop, so judge visuals in the normal place.
 
 ## What it can't check
 
