@@ -2,13 +2,13 @@
 
 Written for: the game's developer, deciding what to test next on the Windows laptop.
 
-**Nothing here ran inside Roblox.** Automated results are in [RESULTS.md](RESULTS.md), one report per level is in [levels/](levels/), and how to run the engine checks is in [STUDIO_HARNESS.md](STUDIO_HARNESS.md).
+**These results ran outside Roblox.** The Studio harness has had one real run, reported separately in [STUDIO_HARNESS.md](STUDIO_HARNESS.md). Automated results are in [RESULTS.md](RESULTS.md), one report per level is in [levels/](levels/), and how to run the engine checks is in [STUDIO_HARNESS.md](STUDIO_HARNESS.md).
 
 ## Final run
 
-- `scripts/check.sh`, complete: **700 tests: 700 passed, 0 failed, 0 skipped, none timed out** (about 15 minutes). Format, lint and types clean, Rojo builds OK.
+- `scripts/check.sh`, complete: **710 tests: 710 passed, 0 failed, 0 skipped, none timed out** (about 15 minutes). Format, lint and types clean, Rojo builds OK.
 - Extended randomized run on new seeds: **28 passed, 0 failed.** An earlier run of these seeds caught BUG-11 (seed 1011); that's fixed and it now passes.
-- Studio harness: **not run.** Manual playtest: **not done.**
+- Studio harness: **first run 39 passed, 1 failed** (the escalator check; rewritten, rerun pending). Manual playtest: **not done.**
 
 BUG-02 and BUG-04 affect every level, so the per-level tables don't count them.
 
@@ -20,7 +20,7 @@ BUG-02 and BUG-04 affect every level, so the per-level tables don't count them.
 | Unit-tested | Pure rule modules under Lune | How the rules connect to the world |
 | Integration-tested | The real server code booted in a fake engine, with mock DataStores and hostile remote calls | Real engine behaviour |
 | Simulated gameplay | That same server with bots on foot over the real day/night clock | Physics, real pathfinding, client scripts, feel |
-| Studio engine-tested | `tools/studio/NightShiftQA.server.luau` in Studio: **not run** | |
+| Studio engine-tested | `tools/studio/NightShiftQA.server.luau` in Studio: **first run 39 passed, 1 failed**; rerun pending | |
 | Manually playtested | A person in Studio: **not done in this QA pass** | |
 
 The fake engine (`tests/harness/Engine.luau`) checks every class and property against Roblox's reflection data and builds the real 4,776-part world. It computes raycasts and walkable floor from those parts. It does not model physics, real Humanoids, the real pathfinder, networking or any client script.

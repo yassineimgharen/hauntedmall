@@ -180,6 +180,13 @@ export type Options = {
 	DataStore: { [string]: any }?, -- shared table = persistence across boots; nil = API access denied
 	Attributes: { [string]: any }?, -- Workspace attributes set before boot
 	ServerOnly: { string }?, -- unused services to skip (none by default)
+	-- Models what a client's physics does to its player's character, for the Studio harness's own
+	-- tests: gravity and conveyors. Off by default (bots walk by CFrame). An approximation, written
+	-- by us: it can show a check is sound, never that Roblox behaves this way.
+	--   ReadyAt: the client simulates nothing before this time (still loading)
+	--   Carry: fraction of a conveyor's velocity that reaches a rider (default 1)
+	--   After: called per character after each physics step, to inject faults
+	CharacterPhysics: { ReadyAt: number?, Carry: number?, After: ((any, number) -> ())? }?,
 }
 
 local serverCount = 0 -- each world is its own server, for session locks
@@ -2200,6 +2207,62 @@ function Engine.new(options: Options?): any
 	end
 
 	-- ── stepping ────────────────────────────────────────────────────────────
+	local physics = opts.CharacterPhysics
+
+	local function clientLoading(model: any): boolean
+		return physics ~= nil
+			and world.Now < (physics.ReadyAt or 0)
+			and PlayersService:GetPlayerFromCharacter(model) ~= nil
+	end
+
+	local function conveyorUnder(feet: any): any
+		for _, part in Workspace:GetDescendants() do
+			if part:IsA("BasePart") and part._p.Anchored and get(part, "AssemblyLinearVelocity").Magnitude > 1 then
+				local size = get(part, "Size")
+				local here = get(part, "CFrame"):PointToObjectSpace(feet)
+				if
+					math.abs(here.X) <= size.X / 2
+					and math.abs(here.Z) <= size.Z / 2
+					and math.abs(here.Y - size.Y / 2) <= 1
+				then
+					return part
+				end
+			end
+		end
+		return nil
+	end
+
+	local function stepCharacterPhysics(dt: number)
+		for _, player in PlayersService._children do
+			local character = player._p and player._p.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and humanoid and not clientLoading(character) then
+				local cf = get(root, "CFrame")
+				local p = cf.Position
+				local height = get(humanoid, "HipHeight") + get(root, "Size").Y / 2
+				local footY = p.Y - height
+				local floor = standY(p.X, p.Z, footY)
+				if floor and footY > floor + 0.05 then
+					root:_setCFrame(cf + Vector3.new(0, math.max(floor - footY, -40 * dt), 0))
+				elseif floor then
+					local conveyor = conveyorUnder(Vector3.new(p.X, floor, p.Z))
+					if conveyor then
+						local carry = get(conveyor, "AssemblyLinearVelocity") * (physics.Carry or 1) * dt
+						local nx, nz = p.X + carry.X, p.Z + carry.Z
+						local nextFloor = standY(nx, nz, footY)
+						if nextFloor then
+							root:_setCFrame(cf + Vector3.new(nx - p.X, nextFloor + height - p.Y, nz - p.Z))
+						end
+					end
+				end
+				if physics.After then
+					physics.After(character, dt)
+				end
+			end
+		end
+	end
+
 	local function moveHumanoids(dt: number)
 		for humanoid in world.Movers do
 			local target = humanoid._moveTarget
@@ -2209,7 +2272,7 @@ function Engine.new(options: Options?): any
 				continue
 			end
 			local root = model:FindFirstChild("HumanoidRootPart")
-			if not root or root._p.Anchored then
+			if not root or root._p.Anchored or clientLoading(model) then
 				continue
 			end
 			local speed = get(humanoid, "WalkSpeed")
@@ -2262,6 +2325,9 @@ function Engine.new(options: Options?): any
 		world.Now += delta
 		world.Stats.Steps += 1
 		moveHumanoids(delta)
+		if physics then
+			stepCharacterPhysics(delta)
+		end
 		-- what physics would report for a character moved this step (bots walk by CFrame)
 		for _, player in PlayersService._children do
 			local character = player._p and player._p.Character

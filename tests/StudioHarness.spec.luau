@@ -57,6 +57,93 @@ test("the harness refuses to run when a real DataStore is connected", function()
 	truthy(stopped, "said why")
 end)
 
+-- Runs just the harness's escalator rides, with fake client physics (see CharacterPhysics in the
+-- engine). Again this tests the check, not Roblox: can it tell a working escalator from a broken one?
+local function escalatorRun(physics: any, players: number?): (string, string)
+	local world = Engine.new({
+		Seed = 4,
+		Attributes = { QA_EscalatorsOnly = true, QA_Riders = players or 1 },
+		CharacterPhysics = physics,
+	})
+	world:boot()
+	for i = 1, players or 1 do
+		world:addPlayer("Rider" .. i)
+	end
+	world:runFile("tools/studio/NightShiftQA.server.luau")
+	truthy(
+		world:runUntil(function()
+			return world.Workspace:GetAttribute("QA_Result") ~= nil
+		end, 400),
+		"finished"
+	)
+	Check.noServerErrors(world)
+	local failed = {}
+	for _, warning in world.Warnings do
+		if warning.Message:find("[QA] FAIL ", 1, true) then
+			table.insert(failed, warning.Message)
+		end
+	end
+	return world.Workspace:GetAttribute("QA_Result"), table.concat(failed, "\n")
+end
+
+test("escalator rides pass both ways, standing and walking, when the belts work", function()
+	local result, failed = escalatorRun({})
+	eq(failed, "", "no failures")
+	truthy(tonumber(result:match("(%d+) passed")) >= 11, "ran every ride: " .. result)
+end)
+
+test("Studio regression: a client still loading is waited for, not reported as a broken escalator", function()
+	-- The first Studio run's "an escalator carries a character: 0,0,0": the check ran before the client
+	-- simulated anything. The old harness fails in exactly this world.
+	local _, failed = escalatorRun({ ReadyAt = 40 })
+	eq(failed, "", "no failures")
+end)
+
+test("two players ride the same escalators together", function()
+	local result, failed = escalatorRun({}, 2)
+	eq(failed, "", "no failures")
+	truthy(tonumber(result:match("(%d+) passed")) >= 12, "ran every ride: " .. result)
+end)
+
+test("a client that never starts is a failure that says so, not a pass", function()
+	local _, failed = escalatorRun({ ReadyAt = 100000 })
+	truthy(failed:find("client is simulating", 1, true), failed)
+	eq(failed:find("carries", 1, true), nil, "no ride was claimed")
+end)
+
+test("the check fails when a belt moves but doesn't carry anyone", function()
+	local _, failed = escalatorRun({ Carry = 0 })
+	truthy(failed:find("Escalator1 (up): carries a standing", 1, true), failed)
+	truthy(failed:find("Escalator2 (down): carries a standing", 1, true), failed)
+end)
+
+test("the check fails when a belt carries too slowly", function()
+	local _, failed = escalatorRun({ Carry = 0.3 })
+	truthy(failed:find("carries a standing", 1, true), failed)
+end)
+
+test("the check fails on teleporting riders", function()
+	local _, failed = escalatorRun({
+		After = function(character, dt)
+			if math.random() < dt / 2 then
+				character:PivotTo(character:GetPivot() + character:GetPivot().LookVector * 8)
+			end
+		end,
+	})
+	truthy(failed:find("carries a standing", 1, true), failed)
+end)
+
+test("the check fails on jitter", function()
+	local sign = 1
+	local _, failed = escalatorRun({
+		After = function(character)
+			sign = -sign
+			character:PivotTo(character:GetPivot() + character:GetPivot().RightVector * sign * 1.5)
+		end,
+	})
+	truthy(failed:find("carries a standing", 1, true), failed)
+end)
+
 test("the shipped project doesn't include the harness", function()
 	local serde = require("@lune/serde")
 	local fs = require("@lune/fs")

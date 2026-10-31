@@ -32,6 +32,43 @@ test("BUG-01 regression: the mall's ground plate leaves the basement ramp open",
 	eq(world.standY(ramp.X, ramp.TopZ + 6, 0.5) < -1, true, "no floor plate over the ramp")
 end)
 
+test("escalator ramps are solid conveyors running the way their signs say", function()
+	local Layout = world:require("World.Layout")
+	eq(#Layout.Escalators, 2, "one up, one down")
+	for i, escalator in Layout.Escalators do
+		local model = world.Workspace:FindFirstChild("Escalator" .. i, true)
+		truthy(model, "built")
+		local ramp = model:FindFirstChild("Ramp")
+		eq(ramp.Anchored, true, "anchored: only riders move")
+		eq(ramp.CanCollide, true, "riders stand on it")
+		local slope = escalator.Top - escalator.Bottom
+		local wanted = slope.Unit * Layout.EscalatorSpeed * escalator.Direction
+		truthy((ramp.AssemblyLinearVelocity - wanted).Magnitude < 1e-3, "belt velocity")
+		eq(ramp.AssemblyLinearVelocity.Y > 0, escalator.Direction > 0, "up carries up, down carries down")
+		truthy(Layout.EscalatorSpeed < 16, "slower than walking, so a rider can walk against it")
+		eq(model:GetAttribute("Direction"), escalator.Direction, "the treads animate the same way")
+	end
+end)
+
+test("escalators are clear from floor to balcony, with no ledge to catch on", function()
+	local Layout = world:require("World.Layout")
+	for _, escalator in Layout.Escalators do
+		local slope = escalator.Top - escalator.Bottom
+		local flat = Vector3.new(slope.X, 0, slope.Z)
+		local steps = math.ceil(flat.Magnitude)
+		local y = escalator.Bottom.Y
+		for i = -2, steps + 5 do
+			local p = escalator.Bottom + flat.Unit * i
+			local floor = world.standY(p.X, p.Z, y)
+			truthy(floor, "floor at step " .. i)
+			truthy(math.abs(floor - y) <= 1.2, string.format("smooth at step %d: %.2f then %.2f", i, y, floor))
+			truthy(world.standable(p.X, p.Z, floor), "room to stand at step " .. i)
+			y = floor
+		end
+		truthy(math.abs(y - escalator.Top.Y) < 0.5, "ends level with the balcony")
+	end
+end)
+
 test("every required objective event has a server call that records it", function()
 	local fs = require("@lune/fs")
 	local source = {}

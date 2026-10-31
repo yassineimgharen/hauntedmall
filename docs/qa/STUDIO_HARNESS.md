@@ -2,7 +2,7 @@
 
 The Lune tests run the real server code, but in a fake engine. This harness checks what only Roblox can show: real collisions, `PathfindingService`, raycasts, Humanoid walking, welds and conveyors.
 
-**It has not been run yet.** Nothing in this repo has executed inside Roblox Studio. Only its logic has been smoke-tested in the fake engine (`tests/StudioHarness.spec.luau`).
+**First real run (reported 2026-10-31): 39 passed, 1 failed.** The failure was `an escalator carries a character: 0,0,0`; see [Escalator check](#escalator-check). The rewritten check has not run in Studio yet. In the fake engine (`tests/StudioHarness.spec.luau`) only its logic is tested.
 
 ## Run it
 
@@ -17,6 +17,8 @@ The Lune tests run the real server code, but in a fake engine. This harness chec
 3. Optional: to test only some levels first, select **Workspace** and add attributes:
    - `QA_Levels` (string), for example `L12,L14`. A first run on these two takes a few minutes.
    - `QA_Walk` (number), how many prompts per stage a real character walks to. The default is 3; 0 is fastest.
+   - `QA_EscalatorsOnly` (boolean, ticked), only the one-off checks and escalator rides, about 2 minutes.
+   - `QA_Riders` (number), wait for this many players and ride together. Use it with **Test → Clients and Servers**, and read the results in the Server window.
 4. Press **Play (F5)**, keep the Output window open and don't move the character. The script steers it, and skips phases by itself.
 5. Wait for `[QA] DONE: n passed, m failed`. A full run over all levels takes about 20 minutes (an estimate; it hasn't been timed).
 6. Copy the lines starting `[QA] FAILED` back to me, or all the `[QA]` lines.
@@ -34,9 +36,31 @@ The published game never contains this script: `default.project.json` doesn't in
 | NPCs and monsters move | Real Humanoids, sampled over 15 s |
 | Bosses | L07 and L14: weak points on the body (welds really hold), a beam raycast really hits them |
 | L12 ramp | A real path down the basement ramp (BUG-01) |
-| Escalators | A real character is carried by the conveyor |
+| Escalators | Every rider, both escalators: standing, walking with the belt, walking against it. Speed, climb, stepping off, teleports, jitter |
 | Remotes | All created |
 | World sanity | No parts at impossible positions |
+
+## Escalator check
+
+The first version of this check could not tell a broken escalator from a client that hadn't started. It ran as soon as the save data loaded, moved the character from the server, waited 1.5 s and compared positions. A character is simulated by its client, so with no client physics running yet the server sees it stay exactly where it was put. A delta of exactly zero means physics never touched the character: even a dead belt would leave gravity settling it on the slope. So that result says nothing about the belts either way. The old pass rule was also too weak: any rise counted, so a bounce would have passed.
+
+The check now waits (up to 90 s) until gravity moves the character, and fails with its own message if that never happens. Then it times a full ride with samples every 0.1 s:
+
+| Ride | Passes when |
+|---|---|
+| Standing | Reaches the end at 60–130% of belt speed, climbing or descending the right way, and ends up standing at the far end |
+| Walking with the belt | Reaches the end at 1.5 × belt speed or more |
+| Walking against it | Reaches the end, slower than the walking speed of 16 |
+| All of them | No step over 6 studs between samples, under 1 stud sideways, under 1.5 studs of bounce. Standing riders also slip back under 0.5 studs |
+
+These limits are first estimates and have not been checked against the real engine. Each result line prints the measured numbers, so a limit that is wrong can be told from a bad ride.
+
+| What Output says | What it means |
+|---|---|
+| `...client is simulating the character` fails | The client never started within 90 s. No ride was measured, and it says nothing about the belts |
+| `carries a standing character` fails with speed near 0 | Physics is running but the belt isn't carrying anyone: a game bug |
+| Fails on biggest step, sideways or bounce | A carried rider that teleports or jitters |
+| `stepped off false` | The rider got stuck or fell at the far end |
 
 ## What it can't check
 

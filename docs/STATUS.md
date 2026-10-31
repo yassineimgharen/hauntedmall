@@ -4,9 +4,11 @@ _Last updated: 2026-10-31._
 
 ## Current: full QA pass, automated playtesting and bug fixes
 
-**Studio verification: not done.** Everything below ran in Lune, on the real server code in a fake engine. Full report: `docs/qa/QA_REPORT.md`. Results: `docs/qa/RESULTS.md`. One report per level: `docs/qa/levels/`. Your Studio checklist: `docs/TESTING.md` §QA.
+**Studio harness: first real run 39 passed, 1 failed.** The failure, `an escalator carries a character: 0,0,0`, can't be a measured belt failure: an exact zero means physics hadn't touched the character yet. The likely cause is that the check ran before the client was simulating. The check is rewritten and **the rerun is pending**, so **whether the belts carry players in the real engine is still unconfirmed.** No game code changed for it. Details: `docs/qa/STUDIO_HARNESS.md`.
 
-**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **700 tests: 700 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`): 28 passed, 0 failed.
+**Studio verification of everything else: not done.** Everything below ran in Lune, on the real server code in a fake engine. Full report: `docs/qa/QA_REPORT.md`. Results: `docs/qa/RESULTS.md`. One report per level: `docs/qa/levels/`. Your Studio checklist: `docs/TESTING.md` §QA.
+
+**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **710 tests: 710 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`) passed 28 of 28 at the previous commit. It wasn't repeated, because this change touched only the test tools and docs, so `docs/qa/` no longer counts those 28.
 
 **Fixed:**
 - **L12 was impossible:** the ground plate sealed the basement ramp.
@@ -17,7 +19,7 @@ _Last updated: 2026-10-31._
 - **Monsters spawning on players:** L04, L06, L10, L11, L12 and L13.
 - **Smaller:** a pathfinder request limit for monsters with no route, and guide arrows for L05's music boxes and L13's purge switches.
 
-**New tooling:** `tests/harness/` (fake engine, bots), seven new spec suites, `tools/studio/NightShiftQA.server.luau` (not run yet: needs your laptop), `.github/workflows/ci.yml`, and `scripts/qa-report.luau`.
+**New tooling:** `tests/harness/` (fake engine, bots), seven new spec suites, `tools/studio/NightShiftQA.server.luau`, `.github/workflows/ci.yml`, and `scripts/qa-report.luau`.
 
 **Not changed, worth a look:** the Newcomer bot's low clear rates on L14 and L13, and the performance risks listed in the report. No performance numbers exist yet.
 

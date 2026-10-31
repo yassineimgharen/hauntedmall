@@ -7,6 +7,8 @@
 -- Workspace attributes, all optional, set before pressing Play:
 --   QA_Levels = "L01,L12"   only these levels (default: all of them; about 20 minutes)
 --   QA_Walk   = 3           prompts per stage a real character walks to (default 3; 0 = none)
+--   QA_EscalatorsOnly = true  only the one-off checks, including the escalator rides (about 2 minutes)
+--   QA_Riders = 2           wait for this many players, and ride together (Test → Clients and Servers)
 -- Results: lines starting [QA] in the Output window, and a summary at the end.
 --
 -- Safety: only runs in Studio; refuses to run if a real DataStore is connected, so it can't touch
@@ -335,6 +337,226 @@ local function checkMovers(prefix: string, seconds: number)
 	end
 end
 
+-- ── escalators ──────────────────────────────────────────────────────────────
+
+local CLIENT_START_TIMEOUT = 90 -- a slow laptop can take a while to load the mall
+local RIDE_TIMEOUT = 20
+local SETTLE = 0.6 -- a placed character lands before its ride is measured
+local LEAVE_TIME = 2.5 -- how long a standing rider gets to step off at the far end
+local RIDER_GAP = 8 -- studs between riders sharing an escalator
+local MAX_STEP = 6 -- studs between two samples: more than this is a teleport, not a ride
+local MAX_LATERAL = 1 -- side-to-side drift off the line of travel
+local MAX_BOUNCE = 1.5 -- change in height above the moving surface
+local MAX_BACKWARD = 0.5 -- total slipping against the direction of travel
+
+-- A player's character is simulated by their client, and this server script only sees what that
+-- client sends back. Until it is running, a character stays exactly where it was put, so nothing can
+-- be measured. Lift the character a little and wait for gravity to bring it back.
+local function clientSimulating(player: Player): boolean
+	local model, _, root = waitAlive(player)
+	local liftedY = root.Position.Y + 3
+	model:PivotTo(root.CFrame + Vector3.new(0, 3, 0))
+	local deadline = os.clock() + CLIENT_START_TIMEOUT
+	while os.clock() < deadline do
+		task.wait(0.1)
+		if root.Position.Y < liftedY - 0.5 then
+			task.wait(1)
+			return true
+		end
+	end
+	return false
+end
+
+type Ride = {
+	Reached: boolean,
+	Left: boolean,
+	Speed: number,
+	MaxStep: number,
+	Lateral: number,
+	Bounce: number,
+	Backward: number,
+	Climb: number,
+}
+
+-- Puts a character on the ramp and samples it to the far end. `heading` is 1 to go with the belt and
+-- -1 against it; `walk` makes the character walk that way instead of standing still.
+local function rideOnce(player: Player, ramp: BasePart, heading: number, walk: boolean, slot: number): Ride
+	local travel = ramp.AssemblyLinearVelocity.Unit
+	local half = ramp.Size.Z / 2
+	local surface = ramp.Position + ramp.CFrame.UpVector * ramp.Size.Y / 2
+	local model, humanoid, root = waitAlive(player)
+	humanoid:MoveTo(root.Position) -- cancels any walk left over from the ride before
+	task.wait(0.3)
+
+	local from = surface + travel * heading * (-half + 5 + (slot - 1) * RIDER_GAP)
+	local to = surface + travel * heading * (half - 4)
+	local at = from + Vector3.new(0, 3.2, 0)
+	local flat = Vector3.new(travel.X, 0, travel.Z) * heading
+	model:PivotTo(CFrame.lookAt(at, at + flat))
+	task.wait(SETTLE)
+	if walk then
+		humanoid:MoveTo(to)
+	end
+
+	-- distance along the slope, from the horizontal position alone: it doesn't depend on how tall the
+	-- character is, and a root above a slope is well ahead of its feet along it
+	local flatTravel = Vector3.new(travel.X, 0, travel.Z)
+	local function along(p: Vector3): number
+		return Vector3.new(p.X - surface.X, 0, p.Z - surface.Z):Dot(flatTravel) / flatTravel:Dot(flatTravel) * heading
+	end
+	local goal = along(to) - 1.5
+	local standHeight = root.Position.Y - (surface + travel * (along(root.Position) * heading)).Y
+	local right, up = ramp.CFrame.RightVector, ramp.CFrame.UpVector
+	local first, firstTime = root.Position, os.clock()
+	local last, lastTime = first, firstTime
+	local result: Ride = {
+		Reached = false,
+		Left = false,
+		Speed = 0,
+		MaxStep = 0,
+		Lateral = 0,
+		Bounce = 0,
+		Backward = 0,
+		Climb = 0,
+	}
+	local minSide, maxSide = (first - surface):Dot(right), (first - surface):Dot(right)
+	local minUp, maxUp = (first - surface):Dot(up), (first - surface):Dot(up)
+	local deadline = firstTime + RIDE_TIMEOUT
+	while os.clock() < deadline do
+		task.wait(0.1)
+		local p = root.Position
+		result.MaxStep = math.max(result.MaxStep, (p - last).Magnitude)
+		result.Backward += math.max(along(last) - along(p), 0)
+		local side, height = (p - surface):Dot(right), (p - surface):Dot(up)
+		minSide, maxSide = math.min(minSide, side), math.max(maxSide, side)
+		minUp, maxUp = math.min(minUp, height), math.max(maxUp, height)
+		last, lastTime = p, os.clock()
+		if along(p) >= goal then
+			result.Reached = true
+			break
+		end
+	end
+	result.Speed = (along(last) - along(first)) / math.max(lastTime - firstTime, 0.1)
+	result.Lateral = maxSide - minSide
+	result.Bounce = maxUp - minUp
+	result.Climb = last.Y - first.Y
+
+	-- A rider doesn't stay on the ramp: it should end up standing at the far end, alive.
+	if result.Reached and not walk then
+		task.wait(LEAVE_TIME)
+		local exit = surface + travel * half
+		local height = root.Position.Y - exit.Y
+		result.Left = along(root.Position) >= along(exit) - 2
+			and math.abs(height - standHeight) < 2
+			and humanoid.Health > 0
+	end
+	return result
+end
+
+local function describe(player: Player, r: Ride): string
+	return string.format(
+		"%s: speed %.1f, climb %.1f, biggest step %.1f, sideways %.1f, bounce %.1f, slipped %.1f, reached end %s, stepped off %s",
+		player.Name,
+		r.Speed,
+		r.Climb,
+		r.MaxStep,
+		r.Lateral,
+		r.Bounce,
+		r.Backward,
+		tostring(r.Reached),
+		tostring(r.Left)
+	)
+end
+
+-- All riders go at once, so a multiplayer run shows the belt carries each of them.
+local function rideTogether(
+	name: string,
+	riders: { Player },
+	ramp: BasePart,
+	heading: number,
+	walk: boolean,
+	judge: (Ride) -> boolean
+)
+	local pending = #riders
+	local ok = true
+	local details = {}
+	for slot, player in riders do
+		task.spawn(function()
+			local ride = rideOnce(player, ramp, heading, walk, slot)
+			ok = ok and judge(ride)
+			table.insert(details, describe(player, ride))
+			pending -= 1
+		end)
+	end
+	local deadline = os.clock() + RIDE_TIMEOUT + LEAVE_TIME + 30
+	while pending > 0 and os.clock() < deadline do
+		task.wait(0.25)
+	end
+	report(ok and pending == 0, name, if pending > 0 then "a rider never finished" else table.concat(details, " | "))
+end
+
+local function checkEscalators()
+	local wanted = workspace:GetAttribute("QA_Riders")
+	local count = if type(wanted) == "number" then wanted else 1
+	local deadline = os.clock() + CLIENT_START_TIMEOUT
+	while #Players:GetPlayers() < count and os.clock() < deadline do
+		task.wait(0.5)
+	end
+	local riders = Players:GetPlayers()
+	report(#riders >= count, "escalators: all the riders joined", string.format("%d of %d", #riders, count))
+
+	local models = CollectionService:GetTagged("Escalator")
+	table.sort(models, function(a, b)
+		return a.Name < b.Name
+	end)
+	report(#models > 0, "escalators exist", tostring(#models))
+
+	local ready = true
+	for _, player in riders do
+		local live = clientSimulating(player)
+		report(
+			live,
+			"escalators: " .. player.Name .. "'s client is simulating the character",
+			if live then nil else string.format("not within %d s, so no ride could be measured", CLIENT_START_TIMEOUT)
+		)
+		ready = ready and live
+	end
+	if not ready then
+		return
+	end
+
+	for _, escalator in models do
+		local ramp = escalator:FindFirstChild("Ramp") :: BasePart?
+		local belt = if ramp then ramp.AssemblyLinearVelocity.Magnitude else 0
+		report(
+			ramp ~= nil and belt > 1,
+			escalator.Name .. ": the ramp is a conveyor",
+			string.format("%.1f studs/s", belt)
+		)
+		if ramp and belt > 1 then
+			local rises = ramp.AssemblyLinearVelocity.Y > 0
+			local prefix = escalator.Name .. if rises then " (up): " else " (down): "
+			local function smooth(r: Ride): boolean
+				return r.Reached and r.MaxStep <= MAX_STEP and r.Lateral <= MAX_LATERAL and r.Bounce <= MAX_BOUNCE
+			end
+			rideTogether(prefix .. "carries a standing character to the end", riders, ramp, 1, false, function(r)
+				return smooth(r)
+					and r.Left
+					and r.Speed >= belt * 0.6
+					and r.Speed <= belt * 1.3
+					and r.Backward <= MAX_BACKWARD
+					and (r.Climb > 0) == rises
+			end)
+			rideTogether(prefix .. "walking with it is faster", riders, ramp, 1, true, function(r)
+				return smooth(r) and r.Speed >= belt * 1.5
+			end)
+			rideTogether(prefix .. "walking against it still gets there", riders, ramp, -1, true, function(r)
+				return smooth(r) and r.Speed >= 2 and r.Speed < 16 -- the belt slows a walker's 16 studs/s
+			end)
+		end
+	end
+end
+
 -- ── one-off checks ──────────────────────────────────────────────────────────
 
 local function checkOnce(player: Player)
@@ -349,27 +571,7 @@ local function checkOnce(player: Player)
 	if workspace:GetAttribute("QA_NoPhysics") then
 		return -- the fake engine's smoke test: nothing below means anything without real physics
 	end
-	-- conveyors (escalators) really carry a character
-	local conveyors = {}
-	for _, part in workspace:GetDescendants() do
-		if part:IsA("BasePart") and part.Anchored and part.AssemblyLinearVelocity.Magnitude > 1 then
-			table.insert(conveyors, part)
-		end
-	end
-	report(#conveyors > 0, "escalators exist", tostring(#conveyors))
-	local conveyor = conveyors[1]
-	if conveyor then
-		local model, _, root = waitAlive(player)
-		local top = conveyor.Position + Vector3.new(0, conveyor.Size.Y / 2 + 3.2, 0)
-		model:PivotTo(CFrame.new(top))
-		task.wait(1.5)
-		local carried = (root.Position - top) * conveyor.AssemblyLinearVelocity.Unit
-		report(
-			carried.X + carried.Y + carried.Z > 0.5 or root.Position.Y > top.Y,
-			"an escalator carries a character",
-			tostring(root.Position - top)
-		)
-	end
+	checkEscalators()
 
 	-- nothing solid hanging in the void, nothing with broken numbers
 	local bad = 0
@@ -425,7 +627,8 @@ local function run()
 	local walkCount = if type(walks) == "number" then walks else 3
 	print("[QA] Night Shift Studio harness starting")
 	checkOnce(player)
-	for _, id in levelIds() do
+	local ids = if workspace:GetAttribute("QA_EscalatorsOnly") then {} else levelIds()
+	for _, id in ids do
 		workspace:SetAttribute("MissionTest_Level", id)
 		skipTo("Dawn", 120)
 		local onLevel = skipTo("Day", 120) and ReplicatedStorage:GetAttribute("LevelId") == id
