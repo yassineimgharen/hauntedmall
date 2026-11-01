@@ -14,7 +14,7 @@ local BUGS = {
 	L10 = { "BUG-11" },
 	L11 = { "BUG-11" },
 	L12 = { "BUG-01", "BUG-11" },
-	L13 = { "BUG-07", "BUG-11" },
+	L13 = { "BUG-07", "BUG-11", "BUG-12" },
 	L14 = { "BUG-10" },
 }
 
@@ -32,7 +32,7 @@ local ENGINE_GAPS = {
 	L10 = "UV reveal visuals; mimic pounce fairness at real speed; parcels and nest models; the truck cab prompt.",
 	L11 = "Footprint glow under the beam; freeze camera; door animations; heat lamp ranges on screen.",
 	L12 = "Rising walls pushing a real character out (the sim only models it); the ramp on real Humanoids; maze readability.",
-	L13 = "Crawling the ducts with a real character (headroom, jump); gas fog visuals; meter feel.",
+	L13 = "Crawling the ducts into the fan rooms with a real character (headroom, jump; BUG-12's fix isn't confirmed in Studio); gas fog visuals; meter feel.",
 	L14 = "The intro cinematic; cleaver and pan arm motors; dish carry visuals; hit boxes against the real rig.",
 }
 

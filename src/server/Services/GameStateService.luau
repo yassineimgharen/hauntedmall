@@ -5,6 +5,7 @@
 -- Studio helpers (set on Workspace in the server view):
 --   FastPhases = true  → shortened durations (set before pressing Play)
 --   SkipPhase  = true  → ends the current phase immediately (auto-resets)
+--   HoldPhase  = true  → the phase's clock can't end it; SkipPhase still does (the QA harness uses it)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -63,6 +64,10 @@ function GameStateService.ShortenPhase(seconds: number)
 	ReplicatedStorage:SetAttribute("PhaseDuration", workspace:GetServerTimeNow() + seconds - phaseStartedAt)
 end
 
+local function phaseHeld(): boolean
+	return RunService:IsStudio() and workspace:GetAttribute("HoldPhase") == true
+end
+
 local function runPhase(newPhase: Phase)
 	local duration = phaseDuration(newPhase)
 	phase = newPhase
@@ -74,7 +79,7 @@ local function runPhase(newPhase: Phase)
 	ReplicatedStorage:SetAttribute("NightNumber", nightNumber)
 	GameStateService.PhaseChanged:Fire(phase, nightNumber)
 
-	while os.clock() < phaseEndsAt do
+	while os.clock() < phaseEndsAt or phaseHeld() do
 		if RunService:IsStudio() and workspace:GetAttribute("SkipPhase") == true then
 			workspace:SetAttribute("SkipPhase", false)
 			break

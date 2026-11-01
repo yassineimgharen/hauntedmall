@@ -1,14 +1,14 @@
 # Status Report
 
-_Last updated: 2026-10-31._
+_Last updated: 2026-11-01._
 
 ## Current: full QA pass, automated playtesting and bug fixes
 
-**Studio harness, version 4: not run yet.** The last reported run (version 3) stopped at 7m45s with 21 passed, 1 failed. No game bug is confirmed. The down-escalator failure traces to the harness's test rider, the fix isn't confirmed in Studio, and real player rides passed in that run. The client disconnect is still unexplained; the harness now records evidence for it. Version 4 adds Run mode (no client), level batches, per-check limits and a coverage report. Verdicts and steps: `docs/qa/STUDIO_HARNESS.md`.
+**Studio harness, version 4, Run mode (F8):** the first run to cover all 14 levels, with no disconnect: 196 passed, 2 failed, 1 inconclusive, 22 skipped. Result: one game bug (L13's fan rooms 2 and 3, geometry) and two harness bugs (L10's sleeping mimics counted as stuck, L05's night clock running out mid-check). All three are fixed in version 5, which **hasn't run in Studio**. Play-mode batches come next. Verdicts and steps: `docs/qa/STUDIO_HARNESS.md`.
 
 **Studio verification of everything else: not done.** Everything below ran in Lune, on the real server code in a fake engine. Full report: `docs/qa/QA_REPORT.md`. Results: `docs/qa/RESULTS.md`. One report per level: `docs/qa/levels/`. Your Studio checklist: `docs/TESTING.md` §QA.
 
-**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **735 tests: 735 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`) passed 28 of 28 at the previous commit. It wasn't repeated, because this change touched only the test tools and docs, so `docs/qa/` no longer counts those 28.
+**Latest complete `scripts/check.sh`:** format, lint and types clean, Rojo build OK. **751 tests: 751 passed, 0 failed, 0 skipped, none timed out.** A further randomized run on new seeds (`QA_RUNS=28 QA_FIRST_SEED=1000`) passed 28 of 28 on the same code.
 
 **Fixed:**
 - **L12 was impossible:** the ground plate sealed the basement ramp.

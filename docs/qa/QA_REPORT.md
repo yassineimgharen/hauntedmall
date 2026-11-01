@@ -2,13 +2,13 @@
 
 Written for: the game's developer, deciding what to test next on the Windows laptop.
 
-**These results ran outside Roblox.** The Studio harness has had one real run, reported separately in [STUDIO_HARNESS.md](STUDIO_HARNESS.md). Automated results are in [RESULTS.md](RESULTS.md), one report per level is in [levels/](levels/), and how to run the engine checks is in [STUDIO_HARNESS.md](STUDIO_HARNESS.md).
+**These results ran outside Roblox,** except the Studio harness runs reported in [STUDIO_HARNESS.md](STUDIO_HARNESS.md). Automated results are in [RESULTS.md](RESULTS.md), one report per level is in [levels/](levels/), and how to run the engine checks is in [STUDIO_HARNESS.md](STUDIO_HARNESS.md).
 
 ## Final run
 
-- `scripts/check.sh`, complete: **735 tests: 735 passed, 0 failed, 0 skipped, none timed out** (about 15 minutes). Format, lint and types clean, Rojo builds OK.
-- Extended randomized run on new seeds: **28 passed, 0 failed.** An earlier run of these seeds caught BUG-11 (seed 1011); that's fixed and it now passes.
-- Studio harness: **version 4 not run yet.** Earlier runs and verdicts are in [STUDIO_HARNESS.md](STUDIO_HARNESS.md). Manual playtest: **not done.**
+- `scripts/check.sh`, complete: **751 tests: 751 passed, 0 failed, 0 skipped, none timed out** (about 30 minutes). Format, lint and types clean, Rojo builds OK.
+- Extended randomized run on new seeds: **28 passed, 0 failed,** repeated after the fake engine's monster fix. An earlier run of these seeds caught BUG-11 (seed 1011); that's fixed and it passes.
+- Studio harness: version 4 in Run mode (F8) covered all 14 levels: **196 passed, 2 failed, 1 inconclusive, 22 skipped** (real Studio, as reported, with player-dependent checks still to run). **Version 5, with fixes for those three, not run yet.** Verdicts are in [STUDIO_HARNESS.md](STUDIO_HARNESS.md). Manual playtest: **not done.**
 
 BUG-02 and BUG-04 affect every level, so the per-level tables don't count them.
 
@@ -20,8 +20,10 @@ BUG-02 and BUG-04 affect every level, so the per-level tables don't count them.
 | Unit-tested | Pure rule modules under Lune | How the rules connect to the world |
 | Integration-tested | The real server code booted in a fake engine, with mock DataStores and hostile remote calls | Real engine behaviour |
 | Simulated gameplay | That same server with bots on foot over the real day/night clock | Physics, real pathfinding, client scripts, feel |
-| Studio engine-tested | `tools/studio/NightShiftQA.server.luau` in Studio: **version 4 not run yet**; earlier runs didn't finish clean | |
+| Studio engine-tested | `tools/studio/NightShiftQA.server.luau` in Studio: version 4, Run mode only, all 14 levels; **version 5 and Play mode not run yet** | Whatever needs a player, until Play mode runs |
 | Manually playtested | A person in Studio: **not done in this QA pass** | |
+
+A correction: until now the fake engine left L11's wraith frozen at its spawn, because it never lifted a monster to its hip height. So earlier simulated L11 nights didn't test the wraith at all. That's fixed in the engine, with a test.
 
 The fake engine (`tests/harness/Engine.luau`) checks every class and property against Roblox's reflection data and builds the real 4,776-part world. It computes raycasts and walkable floor from those parts. It does not model physics, real Humanoids, the real pathfinder, networking or any client script.
 
@@ -37,6 +39,7 @@ Each has a test that failed or was added against the fault, and stays in the sui
 | BUG-09 | High | **L06: dying or idling at the entrance earned evacuation** | The player spawn is 10 studs from the ring, inside its 12-stud radius, and only position at dawn was checked | You must have gone 30 studs out since you last spawned; the balcony above no longer counts either | `LevelRules.spec` |
 | BUG-10 | High | **Boss health stayed at full-team size after players left** (and didn't rise if they joined) | HP was set once at the start | `BossScaling`: keeps the health fraction, joins apply at once, leaves after 10 s | `ShadowQueen.spec`, `Players.spec` |
 | BUG-08 | High | **L06 alone was far harder than any other level** | See below | Hunts send 1 crawler at a solo player, still 2 at a team | `LevelRules.spec` |
+| BUG-12 | Medium | **L13: Roblox's pathfinder found no way into fan rooms 2 and 3,** though their fans are required. Found by the Studio harness | Those doors look at the fan's edge, 2.5 studs in; room 1's faces the fan with 6 studs of floor | Fans now face their doors (`FoodCourtDetail.ventFan`). **Not yet confirmed in Studio** | `World.spec`: failed on rooms 2 and 3 before the fix |
 | BUG-02 | Medium | Monsters with no route asked the pathfinder on every AI tick (5 per second each) | No retry limit after a failed path | At most once a second | `World.spec` |
 | BUG-05 | Medium | L05's music boxes had no guide arrow | No `Marker` | Marker added | `World.spec`, `Levels.spec` |
 | BUG-06 | Medium | L06 crawlers could appear beside a player (6 studs seen) | Hunt and guard spawns ignored players | 15-stud clearance | `Levels.spec`, `Properties.spec` |

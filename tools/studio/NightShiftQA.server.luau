@@ -35,7 +35,7 @@ if not RunService:IsStudio() then
 	return
 end
 
-local HARNESS_VERSION = 4
+local HARNESS_VERSION = 5
 local STAGE_LIMIT = 420
 local SESSION_LIMIT = 900 -- under Roblox's 20-minute idle disconnect
 local PROMPTS_LIMIT = 240
@@ -382,7 +382,14 @@ local function walkOnce(rider: any, stage: string, prompt: ProximityPrompt, poin
 			end
 			if phase() ~= stage then
 				shield:Destroy()
-				return false, true, "the stage ended during the walk"
+				return false,
+					true,
+					string.format(
+						"the stage ended during the walk: now %s, at waypoint %d of %d",
+						tostring(phase()),
+						i,
+						#waypoints
+					)
 			end
 		end
 		if (walker.Position - waypoint.Position).Magnitude > 5 then
@@ -583,45 +590,74 @@ local function checkLevelSpecific(id: string, stage: string, prefix: string)
 	end
 end
 
--- Stops looking as soon as something has moved: one mover answers the question.
-local function checkMovers(prefix: string, seconds: number)
-	-- monsters and shoppers really walk under the real Humanoid
-	local before = {}
-	for _, model in workspace:GetDescendants() do
-		if
-			model:IsA("Humanoid")
-			and model.Parent
-			and not Players:GetPlayerFromCharacter(model.Parent)
-			and not model.Parent:GetAttribute("QA_Rider")
-		then
-			local root = model.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if root then
-				before[root] = root.Position
-			end
-		end
-	end
-	local total, moved = 0, 0
+local MOVER_WATCH = 15 -- how long something gets to move before it counts as stuck
+local MOVER_ARRIVAL = 12 -- a night's first monster can take a while (L05's Stalker: 8 s)
+local MOVER_LIMIT = 45 -- a level's first waking monster, in Play (L10's first hatchlings: 16 to 24 s)
+-- With nobody to hunt these stand where they are, by design (ParcelMimic's prowl).
+local HUNTS_PLAYERS_ONLY = { ParcelMimic = true, ParcelMite = true }
+
+-- Watches everything that's meant to walk, including whatever arrives during the check. Stops as soon
+-- as something has moved: one mover answers the question. A sleeping mimic isn't meant to walk, and
+-- with no player neither is anything that only hunts players; they aren't counted either way.
+local function checkMovers(prefix: string, stage: string)
+	local name = prefix .. " NPCs and monsters move on their own"
+	local watched: { [BasePart]: { From: Vector3, Since: number } } = {}
 	local started = os.clock()
-	repeat
-		task.wait(1)
-		total, moved = 0, 0
-		for root, position in before do
-			if root.Parent then
-				total += 1
-				if (root.Position - position).Magnitude > 2 then
-					moved += 1
+	local total, moved, longest, waiting = 0, 0, 0, 0
+	while true do
+		total, moved, longest, waiting = 0, 0, 0, 0
+		local now = os.clock()
+		for _, humanoid in workspace:GetDescendants() do
+			local owner = humanoid.Parent
+			if
+				humanoid:IsA("Humanoid")
+				and owner
+				and not Players:GetPlayerFromCharacter(owner)
+				and not owner:GetAttribute("QA_Rider")
+				and not owner:GetAttribute("Dead")
+			then
+				local root = owner:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if root and (owner:GetAttribute("Disguised") or (serverMode and HUNTS_PLAYERS_ONLY[owner.Name])) then
+					waiting += 1
+				elseif root then
+					local entry = watched[root]
+					if not entry then
+						entry = { From = root.Position, Since = now }
+						watched[root] = entry
+					end
+					total += 1
+					longest = math.max(longest, now - entry.Since)
+					if (root.Position - entry.From).Magnitude > 2 then
+						moved += 1
+					end
 				end
 			end
 		end
-	until moved > 0 or total == 0 or os.clock() - started >= seconds
-	if total > 0 then
-		report(
-			moved > 0,
-			prefix .. " NPCs and monsters move on their own",
-			string.format("%d of %d moved in %.0f s", moved, total, os.clock() - started)
+		local spent = now - started
+		local patience = if waiting > 0 and not serverMode
+			then MOVER_LIMIT
+			elseif stage == "Night" then MOVER_ARRIVAL
+			else 1
+		if moved > 0 or longest >= MOVER_WATCH or spent >= MOVER_LIMIT or (total == 0 and spent >= patience) then
+			break
+		end
+		task.wait(1)
+	end
+	local spent = os.clock() - started
+	local counts = string.format("%d of %d moved in %.0f s, %d more waiting for a player", moved, total, spent, waiting)
+	if moved > 0 or longest >= MOVER_WATCH then
+		report(moved > 0, name, counts)
+	elseif total > 0 then
+		reportUnclear(name, "the check ran out of time before anything had long enough to move: " .. counts)
+	elseif waiting > 0 and serverMode then
+		reportSkipped(
+			name,
+			string.format("%d waiting for a player, by design (sleeping or hunting): use Play", waiting)
 		)
+	elseif waiting > 0 then
+		reportUnclear(name, string.format("only %d sleeping, and nothing else appeared in %.0f s", waiting, spent))
 	elseif serverMode then
-		reportSkipped(prefix .. " NPCs and monsters move on their own", "none appear without a player: use Play")
+		reportSkipped(name, "none appear without a player: use Play")
 	end
 end
 
@@ -1119,6 +1155,7 @@ local function finish(stopReason: string?)
 		return
 	end
 	finished = true
+	workspace:SetAttribute("HoldPhase", false)
 	if stopReason then
 		warn(string.format("[QA] STOPPED after %s: %s, during: %s", elapsed(), stopReason, currentStep))
 		for player, news in clientNews do
@@ -1332,6 +1369,8 @@ local function run()
 		local onLevel = skipTo("Day", 120) and ReplicatedStorage:GetAttribute("LevelId") == id
 		report(onLevel, id .. " loads")
 		if onLevel then
+			-- A stage's clock mustn't end it halfway through a check; skipTo still moves things on.
+			workspace:SetAttribute("HoldPhase", true)
 			for _, stage in stages do
 				if stage == "Night" then
 					skipTo("Night", 60)
@@ -1379,7 +1418,7 @@ local function run()
 				end) and check("level checks", CHECK_LIMIT, function()
 					checkLevelSpecific(id, stage, prefix)
 				end) and check("movers", CHECK_LIMIT, function()
-					checkMovers(prefix, 15)
+					checkMovers(prefix, stage)
 				end) and check("walks", stageLimit, function()
 					checkWalks(prefix, rider, stage, reachable, walkCount, walkedInLevel)
 				end)

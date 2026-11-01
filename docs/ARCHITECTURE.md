@@ -53,7 +53,7 @@ Client: waits for `game.Loaded` and `workspace.Mall`, then starts its controller
 | Where | Attributes |
 |-------|-----------|
 | `ReplicatedStorage` | `Phase`, `PhaseStartedAt` (server time), `PhaseDuration`, `NightNumber`, `Wave`, `FusesRepaired`, `FusesTotal` |
-| `workspace` | `EnemiesAlive`; Studio-only `FastPhases`, `SkipPhase` |
+| `workspace` | `EnemiesAlive`; Studio-only `FastPhases`, `SkipPhase`, `HoldPhase` |
 | `Player` | `DataLoaded`, `DataMock`, `Cash`, `Level`, `XP`, `XPNeeded`, `Upg_<Id>`, `Set_*`, `ShopId`, `ShopStock`, `ShopMaxStock`, `Battery`, `CollectiblesFound` |
 | Shop model | `ShopId`, `Category`, `Accent`, `OwnerUserId`, `OwnerName`, `Stock`, `MaxStock`, `CustomersWaiting`, nav points `P_*` |
 | Enemy model | `HP`, `MaxHP`, `SpawnedAt`, `AttackAt`, `LitUntil`, `StunnedUntil`, `Dead` |

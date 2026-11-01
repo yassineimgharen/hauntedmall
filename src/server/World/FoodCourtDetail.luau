@@ -793,12 +793,14 @@ local function buildEntranceSign(parent: Instance)
 	neon(parent, Vector3.new(0.3, 0.3, 22.4), CFrame.new(-69.3, F.DoorHeight + 4.5, 0), Palette.NeonGold, true)
 end
 
--- A ventilation fan unit inside a fan room (Level 13 repairs them).
-function FoodCourtDetail.ventFan(room: Instance, center: Vector3, name: string, index: number)
+-- A ventilation fan unit inside a fan room (Level 13 repairs them). It faces the room's door, with
+-- open floor in front: side on, its edge would leave too small a gap to walk in past it.
+function FoodCourtDetail.ventFan(room: Instance, center: Vector3, name: string, index: number, facing: Vector3)
 	local model = Builder.model("VentFan", room)
 	model:SetAttribute("FanIndex", index)
 	model:SetAttribute("FanName", name)
-	local cf = CFrame.new(center + Vector3.new(0, 6, 0))
+	local middle = center + Vector3.new(0, 6, 0)
+	local cf = CFrame.lookAt(middle, middle + facing)
 	box(model, Vector3.new(9, 9, 2), cf * CFrame.new(0, 0, 0), rgb(70, 74, 82), Enum.Material.DiamondPlate, true)
 	local hub = Builder.part({
 		Name = "Blades",

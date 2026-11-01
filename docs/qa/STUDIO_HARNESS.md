@@ -2,9 +2,9 @@
 
 The Lune tests run the real server code, but in a fake engine. This harness checks what only Roblox can show: real collisions, `PathfindingService`, raycasts, Humanoid walking, welds and conveyors.
 
-**Current build: harness version 4.** The first `[QA]` line says `harness version 4 starting`. A different number means an old place file is open.
+**Current build: harness version 5.** The first `[QA]` line says `harness version 5 starting`. A different number means an old place file is open.
 
-Nothing below has run in Studio on this version yet. In the fake engine (`tests/StudioHarness.spec.luau`) only the harness's logic is tested.
+Version 5 and its L13 geometry fix haven't run in Studio yet. In the fake engine (`tests/StudioHarness.spec.luau`) only the harness's logic is tested.
 
 ## Two ways to run
 
@@ -44,7 +44,7 @@ Run mode is the cheap way to cover all 14 levels. Anything it can't do says `SKI
    | `QA_StageLimit` | number | Seconds a stage may take in all. Default 420 |
 
 4. Press **F8** or **F5**. In Play, don't move the character.
-5. Check the first `[QA]` line: version 4, the right `MODE`, your settings.
+5. Check the first `[QA]` line: version 5, the right `MODE`, your settings.
 6. Wait for `[QA] DONE` or `[QA] PARTIAL`, then copy the Output.
 
 ## What the results mean
@@ -55,7 +55,7 @@ Run mode is the cheap way to cover all 14 levels. Anything it can't do says `SKI
 - **`[QA] COVERAGE`:** at the end, every stage planned for the session: `COMPLETE`, `PARTIAL` or `NOT RUN`.
 - **`[QA] CLIENT SILENT`, `CLIENT BACK`, `STALL`, `CLIENT-LOCAL`, `CLIENT-ERROR`, `STAT`:** evidence about freezes and disconnects.
 
-Every check has a time limit, and a stuck check costs only that check. Results print the moment they happen, so a run that dies keeps them.
+A stage's clock is held while it's checked (`HoldPhase`, Studio only), so a slow check can't run out the day or night. If a stage ends anyway, the walk says so and is inconclusive. Every check has a time limit, and a stuck check costs only that check. Results print the moment they happen, so a run that dies keeps them.
 
 ## Keeping results across sessions
 
@@ -68,6 +68,18 @@ Get-ChildItem "$env:LOCALAPPDATA\Roblox\logs\*.log" | Sort-Object LastWriteTime 
 ```
 
 ## Reported Studio runs
+
+### Harness version 4 (`c5ca33d`), Run mode (F8): 196 passed, 2 failed, 1 inconclusive, 22 skipped, 36m53s
+
+The first run to cover all 14 levels, with no disconnect. Verdicts come from the pasted failure lines and the code: the full Output log didn't reach me, so nothing else in that log has been reviewed.
+
+| Issue | Verdict | Why |
+|---|---|---|
+| L10 Night: `NPCs and monsters move on their own`, 0 of 2 moved | **Harness bug, fix unconfirmed in Studio** | With nobody online L10 starts exactly 2 mimics, disguised and anchored until a player comes near. Hatched ones arrive 16 to 24 s in, then stand still with no player to hunt. The check counted what was there when it started and expected it to walk. Pathfinding was never involved. With a player, the old check would also have failed for the same reason |
+| L13 Day: FanRoom2 and FanRoom3 `Replace Belt`, NoPath | **Game bug (level geometry), fixed; fix unconfirmed in Studio** | Those doors look at the fan's edge, 2.5 studs in. Room 1's door faces the fan, with 6 studs of floor. A character may squeeze past (a 2.7-stud gap, not tried) and the prompts have a 12-stud range with no line-of-sight rule, so by the numbers they work from the doorway, but the three fans are required, and the rooms shouldn't depend on that. Fans 2 and 3 now face their doors, like fan 1 |
+| L05 Night: walk to `Hide`, the stage ended | **Harness bug, fix unconfirmed in Studio** | L05's night has no early end and no player to end it, and the harness only skips between stages, so its 200 s clock ran out mid-check. This run's lines have no timings, so that comes from ruling out everything else. The harness now holds a stage's clock while it checks it. No game logic problem found |
+
+Also found while fixing these, in my test tools: the fake engine never lifted a monster to its hip height, so L11's wraith (hip height 3, spawned at height 3) never walked in any simulated run. Real Roblox lifts it. It's fixed, so L11's simulated nights are harder now and test more.
 
 ### Harness version 3 (`3a28b45`): 21 passed, 1 failed, stopped after 7m45s
 
@@ -116,7 +128,7 @@ These limits are first estimates, not checked against the real engine. Each resu
 | Line of sight on prompts that need it | Real raycast from where the path ends |
 | A character gets there | `Humanoid:MoveTo` with real collisions. The level's own prompts first; mall fixtures once per level |
 | Monster spawn points | At night: floor below them, nothing fixed inside them |
-| NPCs and monsters move | Real Humanoids, for up to 15 s, stopping as soon as one has moved |
+| NPCs and monsters move | Real Humanoids, including any that arrive during the check. Each gets 15 s, stopping as soon as one has moved. A sleeping mimic isn't expected to move; with no player, nor is a mimic or mite. With only those it says SKIPPED (Run) or waits up to 45 s for one to wake (Play) |
 | Bosses | L07 and L14: weak points on the body (welds really hold), a beam raycast really hits them |
 | L12 ramp | A real path down the basement ramp (BUG-01) |
 | Belts | See above |

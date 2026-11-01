@@ -589,7 +589,14 @@ test("L11 Night: cold rises at night, heat lamps bring it down, and the exit nee
 		local cold = self.Player:GetAttribute("Meter_Cold")
 		if type(cold) == "number" and cold > 0.25 then
 			self.Player:SetAttribute("WarmTest", true)
-			local lamp = tagged(world, "HeatLamp")[1]
+			-- the nearest, as a player would: the wraith is hunting, and a long walk won't get there
+			local lamp, nearest = nil, math.huge
+			for _, heat in tagged(world, "HeatLamp") do
+				local distance = (heat.Position - self:position()).Magnitude
+				if distance < nearest then
+					lamp, nearest = heat, distance
+				end
+			end
 			if lamp then
 				self:walkTo(lamp.Position, 5)
 				self:wait(0.5)

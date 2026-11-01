@@ -421,7 +421,7 @@ local function buildDucts(parent: Instance)
 			openings
 		)
 		fanRoom:SetAttribute("FanIndex", i)
-		FoodCourtDetail.ventFan(fanRoom, c, fan.Name, i)
+		FoodCourtDetail.ventFan(fanRoom, c, fan.Name, i, (a - b).Unit)
 	end
 end
 

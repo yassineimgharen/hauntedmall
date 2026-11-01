@@ -2381,7 +2381,8 @@ function Engine.new(options: Options?): any
 				local nx, nz = p.X + direction.X * step, p.Z + direction.Z * step
 				local hip = get(humanoid, "HipHeight")
 				local half = get(root, "Size").Y / 2
-				local footY = p.Y - hip - half
+				-- a real Humanoid lifts itself to its hip height, so feet are never below the root's underside
+				local footY = math.max(p.Y - hip - half, p.Y - half)
 				local floor = standY(nx, nz, footY)
 				local clear = floor and not blockedAt(nx, nz, floor, STEP_UP - 0.3)
 				if not clear then

@@ -24,7 +24,7 @@ rojo serve                                            # keep running for live sy
 
 To test **saving**, publish the place once (File → Publish to Roblox, kept private). Then go to Game Settings → Security and turn on **Enable Studio Access to API Services**. Without this the game uses a memory store and the HUD shows a yellow warning.
 
-To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true.
+To skip a phase while playing, switch to the **Server** view (Test tab → Current: Server) and set the Workspace attribute `SkipPhase` = true. `HoldPhase` = true stops the clock ending the current phase until you clear it; `SkipPhase` still works.
 
 ## §QA: Full QA pass: test this first
 
@@ -37,7 +37,7 @@ git pull
 rojo build qa.project.json -o NightShiftQA.rbxl
 ```
 
-Close Studio before building, then open the new file, leave API access off, press Play, and send me the `[QA]` lines. The first line must say harness version 4. Start with Run (F8), which needs no client; the batches are in that file.
+Close Studio before building, then open the new file, leave API access off, press Play, and send me the `[QA]` lines. The first line must say harness version 5. Start with Run (F8), which needs no client; the batches are in that file.
 
 **2. By hand, in the normal place, with `MissionTest_Level` set on Workspace:**
 

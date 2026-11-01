@@ -522,6 +522,145 @@ test("the check fails on jitter", function()
 	truthy(failed:find("carries a standing", 1, true), failed)
 end)
 
+-- Studio, Run mode: "FAIL L10 Night: NPCs and monsters move on their own :: 0 of 2 moved in 15 s".
+-- The two were L10's sleeping mimics, which sit still until a player comes near; that's the level.
+test("Studio regression: with no player, L10's mimics are still by design, and that's skipped, not failed", function()
+	local world = harnessRun({ QA_Mode = "Server", QA_Levels = "L10", QA_Stage = "Night", QA_Walk = 0 }, {}, 0)
+	finished(world, 300)
+	eq(lines(world, "[QA] FAIL "), "", "no failures")
+	local skipped = world:GetPrints("[QA] SKIPPED L10 Night: NPCs and monsters move on their own")
+	truthy(skipped:find("waiting for a player", 1, true), skipped)
+	eq(world:GetPrints("[QA] PASS L10 Night: NPCs and monsters move"), "", "nothing moved, so no pass")
+end)
+
+test("L10 with nobody there: exactly the sleeping mimics, anchored and still, and hatchlings just stand", function()
+	local world = Engine.new({ Seed = 4, Attributes = { MissionTest_Level = "L10" } })
+	world:boot()
+	truthy(world:waitForPhase("Night", 600), "night came")
+	world:run(1)
+	local Enemies = world:require("Services.EnemyService")
+	local sleeping = 0
+	for _, enemy in Enemies.GetAll() do
+		truthy(enemy.Model:GetAttribute("Disguised"), "disguised")
+		truthy(enemy.Root.Anchored, "anchored")
+		sleeping += 1
+	end
+	eq(sleeping, 2, "two with nobody online, the count Studio saw")
+	local at = {}
+	world:run(40) -- past the first hatchings
+	local awake = 0
+	for _, enemy in Enemies.GetAll() do
+		if enemy.Model:GetAttribute("Disguised") ~= true then
+			awake += 1
+			at[enemy] = enemy.Root.Position
+		end
+	end
+	truthy(awake > 0, "the nests hatched")
+	world:run(10)
+	for enemy, position in at do
+		truthy((enemy.Root.Position - position).Magnitude < 2, "no one to hunt, so it stands")
+	end
+end)
+
+test("with a player, L10's mover check waits for a hatched mimic and sees it walk", function()
+	local world = harnessRun({ QA_Levels = "L10", QA_Stage = "Night", QA_Walk = 0 }, {})
+	finished(world, 300)
+	local passed = world:GetPrints("[QA] PASS L10 Night: NPCs and monsters move on their own")
+	truthy(passed ~= "", lines(world, "L10 Night"))
+end)
+
+test("a stuck NPC beside L10's sleeping mimics is still a failure", function()
+	local world = harnessRun(
+		{ QA_Mode = "Server", QA_Levels = "L10", QA_Stage = "Night", QA_Walk = 0 },
+		{},
+		0,
+		function(w)
+			local Instance = w.Instance
+			local model = Instance.new("Model")
+			model.Name = "StuckShopper"
+			local root = Instance.new("Part")
+			root.Name = "HumanoidRootPart"
+			root.Parent = model
+			Instance.new("Humanoid").Parent = model
+			model.Parent = w.Workspace
+		end
+	)
+	finished(world, 300)
+	truthy(lines(world, "[QA] FAIL L10 Night: NPCs and monsters move on their own") ~= "", "not hidden")
+end)
+
+test("L11's wraith leaves home with nobody there: the fake engine lifts it to its hip height as Roblox does", function()
+	local world = Engine.new({ Seed = 4, Attributes = { MissionTest_Level = "L11" } })
+	world:boot()
+	truthy(world:waitForPhase("Night", 600), "night came")
+	world:run(6)
+	local wraith = world:require("Services.EnemyService").GetAll()[1]
+	truthy(wraith and wraith.Type == "FrostWraith", "spawned")
+	local home = wraith.Root.Position
+	world:run(10)
+	truthy((wraith.Root.Position - home).Magnitude > 5, "walked its patrol")
+end)
+
+test("a monster that arrives after the check starts is watched, as L05's Stalker does", function()
+	local world = harnessRun({ QA_Mode = "Server", QA_Levels = "L05", QA_Stage = "Night", QA_Walk = 0 }, {}, 0)
+	finished(world, 300)
+	truthy(world:GetPrints("[QA] PASS L05 Night: NPCs and monsters move on their own") ~= "", "the Stalker walked")
+end)
+
+-- Studio, Run mode: "INCONCLUSIVE L05 Night: a character walks to "Hide" :: the stage ended during the
+-- walk". L05's night has no early end, so its 200 s clock ran out while the harness was still working.
+test("Studio regression: the stage's clock can't end it during a check; only the harness moves it on", function()
+	local world = Engine.new({ Seed = 4, Attributes = { MissionTest_Level = "L05" } })
+	world:boot()
+	truthy(world:waitForPhase("Day", 100), "day came")
+	world.Workspace:SetAttribute("HoldPhase", true)
+	world:run(400)
+	eq(world:phase(), "Day", "a 240 s day held past its length")
+	world.Workspace:SetAttribute("SkipPhase", true)
+	world:run(2)
+	eq(world:phase(), "Dusk", "skipping still works")
+	world.Workspace:SetAttribute("HoldPhase", false)
+	truthy(world:waitForPhase("Night", 30), "released, the clock runs again")
+end)
+
+test("HoldPhase does nothing outside Studio", function()
+	local world = Engine.new({ Seed = 4, Studio = false, DataStore = {} })
+	world:boot()
+	world.Workspace:SetAttribute("HoldPhase", true)
+	truthy(world:waitForPhase("Night", 400), "the clock ignored it")
+end)
+
+test("the harness holds each stage while it checks it and lets go when it finishes", function()
+	local world = harnessRun({ QA_Mode = "Server", QA_Levels = "L05", QA_Stage = "Night", QA_Walk = 3 }, {}, 0)
+	truthy(
+		world:runUntil(function()
+			return world:phase() == "Night" and world.Workspace:GetAttribute("HoldPhase") == true
+		end, 300),
+		"held"
+	)
+	finished(world, 800)
+	eq(lines(world, "the stage ended during the walk"), "", "no walk cut short")
+	eq(world.Workspace:GetAttribute("HoldPhase"), false, "let go")
+end)
+
+test("a stage something else really ends during a walk still says so, and isn't a pass", function()
+	local skipped = false
+	local world
+	world = harnessRun({ QA_Levels = "L01", QA_Stage = "Day", QA_Walk = 1 }, {
+		After = function(model)
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			if not skipped and humanoid and humanoid._moveTarget and world:phase() == "Day" then
+				skipped = true
+				world.Workspace:SetAttribute("SkipPhase", true)
+			end
+		end,
+	})
+	finished(world, 500)
+	truthy(skipped, "the stage was ended")
+	local said = lines(world, "[QA] INCONCLUSIVE L01 Day: a character walks")
+	truthy(said:find("the stage ended during the walk", 1, true), lines(world, "L01 Day"))
+end)
+
 test("the shipped project doesn't include the harness", function()
 	local serde = require("@lune/serde")
 	local fs = require("@lune/fs")

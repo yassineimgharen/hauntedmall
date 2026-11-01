@@ -201,6 +201,105 @@ local function audit(run: any, stageName: string, stage: any)
 	end)
 end
 
+-- Roblox's pathfinder found no way into fan rooms 2 and 3, for either agent size. Their doors looked
+-- at the fan's edge, 2.5 studs in; only room 1's door faced the fan, with 6 studs of floor in front.
+-- This floods the real parts with a 4-stud wide, 5-stud tall agent, from the mall through each duct.
+local AGENT_HALF = 2
+local AGENT_HEIGHT = 5
+
+local function solidBoxes(root: any, around: any, reach: number): { any }
+	local boxes = {}
+	for _, part in root:GetDescendants() do
+		if part:IsA("BasePart") and part.CanCollide then
+			local cf, size = part.CFrame, part.Size / 2
+			local right, up, look = cf.RightVector, cf.UpVector, cf.LookVector
+			local extent = Vector3.new(
+				math.abs(right.X) * size.X + math.abs(up.X) * size.Y + math.abs(look.X) * size.Z,
+				math.abs(right.Y) * size.X + math.abs(up.Y) * size.Y + math.abs(look.Y) * size.Z,
+				math.abs(right.Z) * size.X + math.abs(up.Z) * size.Y + math.abs(look.Z) * size.Z
+			)
+			local low, high = part.Position - extent, part.Position + extent
+			if
+				high.Y > 0.1
+				and low.Y < AGENT_HEIGHT
+				and math.abs(part.Position.X - around.X) - extent.X < reach
+				and math.abs(part.Position.Z - around.Z) - extent.Z < reach
+			then
+				table.insert(boxes, { Low = low, High = high })
+			end
+		end
+	end
+	return boxes
+end
+
+-- How far past the room's door a 4-stud wide agent gets, walking in from outside the duct.
+local function furthestIntoRoom(boxes: { any }, start: any, inward: any, door: any, reach: number): number
+	local function free(x: number, z: number): boolean
+		for _, box in boxes do
+			if
+				x + AGENT_HALF > box.Low.X + 0.01
+				and x - AGENT_HALF < box.High.X - 0.01
+				and z + AGENT_HALF > box.Low.Z + 0.01
+				and z - AGENT_HALF < box.High.Z - 0.01
+			then
+				return false
+			end
+		end
+		return true
+	end
+	local furthest = -math.huge
+	local seen = { [start.X .. "," .. start.Z] = true }
+	local queue = { { start.X, start.Z } }
+	local head = 1
+	while queue[head] do
+		local x, z = queue[head][1], queue[head][2]
+		head += 1
+		furthest = math.max(furthest, (x - door.X) * inward.X + (z - door.Z) * inward.Z)
+		for _, step in { { 0.5, 0 }, { -0.5, 0 }, { 0, 0.5 }, { 0, -0.5 } } do
+			local nx, nz = x + step[1], z + step[2]
+			local key = nx .. "," .. nz
+			if not seen[key] and math.abs(nx - door.X) < reach and math.abs(nz - door.Z) < reach and free(nx, nz) then
+				seen[key] = true
+				table.insert(queue, { nx, nz })
+			end
+		end
+	end
+	return furthest
+end
+
+do
+	local run = Sim.start("L13", 1, { Seed = 1 })
+	run.World:waitForPhase("Day", 400)
+	run.World:run(1)
+	local Layout = run.World:require("World.Layout")
+	for i, fan in Layout.FoodCourt.FanRooms do
+		test(string.format("Studio regression: a 4-stud wide agent walks into fan room %d", i), function()
+			local a, b = fan.Duct[1], fan.Duct[2]
+			local inward = (b - a).Unit
+			local door = b -- the inner face of the room's door wall
+			local start = a - inward * 4
+			local reach = (start - fan.Center).Magnitude + 2
+			local boxes = solidBoxes(run.World.Workspace, fan.Center, reach + AGENT_HALF)
+			truthy(#boxes > 5, "found the room's walls")
+			local depth = furthestIntoRoom(boxes, start, inward, door, reach)
+			truthy(depth >= 3, string.format("got only %.1f studs past the door", depth))
+		end)
+		test(string.format("L13 Day: fan room %d's prompt faces its door, in reach from the floor there", i), function()
+			local room = run.World.Workspace:FindFirstChild("FanRoom" .. i, true)
+			local status = room:FindFirstChild("Status", true)
+			local prompt = status:FindFirstChildOfClass("ProximityPrompt")
+			local inward = (fan.Duct[2] - fan.Duct[1]).Unit
+			local standing = fan.Duct[2] + inward * 3 + Vector3.new(0, 3, 0)
+			truthy(
+				(status.Position - standing).Magnitude <= prompt.MaxActivationDistance,
+				"within range of where the agent stands"
+			)
+			truthy((status.Position - fan.Center):Dot(inward) < 0, "on the door's side of the fan")
+		end)
+	end
+	run.World:shutdown()
+end
+
 for _, level in CampaignConfig.Levels do
 	if level.Implemented then
 		local run = Sim.start(level.Id, 1, { Seed = 1 })
